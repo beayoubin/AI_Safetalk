@@ -5,10 +5,23 @@ services:
     container_name: tbm-backend
     env_file:
       - ./backend/.env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      - qdrant
     volumes:
       - C:/Windows/Fonts/malgun.ttf:/usr/share/fonts/custom/malgun.ttf:ro
     ports:
       - "${BACKEND_PORT:-4000}:4000"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: tbm-qdrant
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
 
   frontend:
     build:
@@ -20,3 +33,6 @@ services:
       - backend
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
+
+volumes:
+  qdrant_storage:
