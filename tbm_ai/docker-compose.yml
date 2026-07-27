@@ -1,0 +1,22 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: tbm-backend
+    env_file:
+      - ./backend/.env
+    volumes:
+      - C:/Windows/Fonts/malgun.ttf:/usr/share/fonts/custom/malgun.ttf:ro
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: tbm-frontend
+    environment:
+      - VITE_PROXY_TARGET=http://backend:4000
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"

@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/header/mainheader.tsx","./src/pages/dashboardpage.tsx","./src/pages/loginpage.tsx","./src/pages/systemadminpage.tsx","./src/pages/tbmgeneratepage.tsx","./src/pages/tbmhistorypage.tsx","./src/pages/index.ts","./src/theme/theme.ts","./src/utils/apiclient.ts"],"version":"5.9.3"}
