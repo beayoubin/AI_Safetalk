@@ -392,12 +392,46 @@ function TbmHistoryPage() {
 
   const pageCount = Math.max(1, Math.ceil(totalCount / rowsPerPage));
   const currentPage = Math.min(page, pageCount - 1);
-  const visibleStartPage = Math.max(1, Math.min(currentPage + 1 - 2, Math.max(1, pageCount - 4)));
-  const visibleEndPage = Math.min(pageCount, visibleStartPage + 4);
-  const shownPages = Array.from(
-    { length: visibleEndPage - visibleStartPage + 1 },
-    (_, idx) => visibleStartPage + idx
-  );
+  type PaginationItem = number | "ellipsis-start" | "ellipsis-end";
+
+  //페이지네이션
+  const paginationItems: PaginationItem[] = (() => {
+    // 페이지가 7개 이하일 때는 전부 표시
+    if (pageCount <= 7) {
+      return Array.from({ length: pageCount }, (_, index) => index + 1);
+    }
+
+    const activePage = currentPage + 1;
+
+    // 앞쪽 페이지
+    if (activePage <= 4) {
+      return [1, 2, 3, 4, 5, "ellipsis-end", pageCount];
+    }
+
+    // 뒤쪽 페이지
+    if (activePage >= pageCount - 3) {
+      return [
+        1,
+        "ellipsis-start",
+        pageCount - 4,
+        pageCount - 3,
+        pageCount - 2,
+        pageCount - 1,
+        pageCount
+      ];
+    }
+
+    // 중간 페이지
+    return [
+      1,
+      "ellipsis-start",
+      activePage - 1,
+      activePage,
+      activePage + 1,
+      "ellipsis-end",
+      pageCount
+    ];
+  })();
 
   useEffect(() => {
     const loadCodeOptions = async () => {
@@ -1166,16 +1200,28 @@ function TbmHistoryPage() {
         <Box
           sx={{
             borderTop: `1px solid ${panelBorder}`,
-            px: 1.5,
+            px: { xs: 0.5, sm: 1.5 },
             py: 0.75,
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
-            gap: 1
-          }}
-        >
-          <Box sx={{ width: 56 }} />
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+            justifyContent: { xs: "center", sm: "space-between" },
+            gap: 1,
+            overflow: "hidden"
+          }}>
+          <Box sx={{
+            width: 56,
+            display: { xs: "none", sm: "block" }
+          }} />
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 0.2,
+              flexWrap: "nowrap",
+              minWidth: 0
+            }}
+          >
             <IconButton
               size="small"
               onClick={() => setPage((prev) => Math.max(prev - 1, 0))}
@@ -1184,57 +1230,57 @@ function TbmHistoryPage() {
             >
               <NavigateBeforeRoundedIcon sx={{ fontSize: 18 }} />
             </IconButton>
-            {visibleStartPage > 1 ? (
-              <>
-                <Button
-                  size="small"
-                  onClick={() => setPage(0)}
-                  sx={{ minWidth: 28, height: 28, px: 0, fontSize: 12, color: mutedText }}
-                >
-                  1
-                </Button>
-                {visibleStartPage > 2 ? (
-                  <Typography sx={{ fontSize: 12, color: mutedText, px: 0.2 }}>...</Typography>
-                ) : null}
-              </>
-            ) : null}
-            {shownPages.map((num) => {
-              const active = num - 1 === currentPage;
+            {paginationItems.map((item) => {
+              if (typeof item !== "number") {
+                return (
+                  <Typography
+                    key={item}
+                    sx={{
+                      width: 28,
+                      minWidth: 28,
+                      height: 28,
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 12,
+                      color: mutedText
+                    }}
+                  >
+                    ...
+                  </Typography>
+                );
+              }
+
+              const active = item - 1 === currentPage;
+
               return (
                 <Button
-                  key={num}
+                  key={item}
                   size="small"
-                  onClick={() => setPage(num - 1)}
+                  onClick={() => setPage(item - 1)}
                   sx={{
+                    width: 28,
                     minWidth: 28,
                     height: 28,
+                    flexShrink: 0,
                     px: 0,
                     fontSize: 12,
                     color: active ? darkNavyText : mutedText,
                     bgcolor: active ? accentBlue : "transparent",
-                    border: active ? `1px solid ${accentBlueHover}` : "none",
+                    border: active
+                      ? `1px solid ${accentBlueHover}`
+                      : "1px solid transparent",
                     borderRadius: 0,
-                    "&:hover": { bgcolor: active ? accentBlueHover : "#eff6ff" }
+                    "&:hover": {
+                      bgcolor: active ? accentBlueHover : "#eff6ff"
+                    }
                   }}
                 >
-                  {num}
+                  {item}
                 </Button>
               );
             })}
-            {visibleEndPage < pageCount ? (
-              <>
-                {visibleEndPage < pageCount - 1 ? (
-                  <Typography sx={{ fontSize: 12, color: mutedText, px: 0.2 }}>...</Typography>
-                ) : null}
-                <Button
-                  size="small"
-                  onClick={() => setPage(pageCount - 1)}
-                  sx={{ minWidth: 28, height: 28, px: 0, fontSize: 12, color: mutedText }}
-                >
-                  {pageCount}
-                </Button>
-              </>
-            ) : null}
             <IconButton
               size="small"
               onClick={() => setPage((prev) => Math.min(prev + 1, pageCount - 1))}
