@@ -51,6 +51,11 @@ const tableHeadCellSx = {
   bgcolor: "#dbeafe",
   textAlign: "center" as const,
   py: 1.25,
+
+  // 한글 줄바꿈 문제 수정
+  whiteSpace: "nowrap",
+  wordBreak: "keep-all",
+
   borderBottom: `1px solid ${panelBorder}`
 };
 
@@ -239,14 +244,14 @@ function DonutChartPanel({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: 2.5,
+          gap: { xs: 1.5, sm: 2.5 },
           width: "100%"
         }}
       >
         <Box
           sx={{
-            width: 150,
-            height: 150,
+            width: { xs: 120, sm: 150 },
+            height: { xs: 120, sm: 150 },
             borderRadius: "50%",
             background: riskDonutGradient,
             display: "flex",
@@ -258,8 +263,8 @@ function DonutChartPanel({
         >
           <Box
             sx={{
-              width: 96,
-              height: 96,
+              width: { xs: 76, sm: 96 },
+              height: { xs: 76, sm: 96 },
               borderRadius: "50%",
               bgcolor: "#ffffff",
               display: "flex",
@@ -272,12 +277,12 @@ function DonutChartPanel({
             <Typography sx={{ fontWeight: 800, fontSize: 32, lineHeight: 1, color: "#1d4ed8" }}>
               {rawTotal}
             </Typography>
-            <Typography sx={{ fontSize: 12, color: mutedText, fontWeight: 600, mt: 0.5 }}>
+            <Typography sx={{ fontSize: { xs: 10, sm: 12 }, color: mutedText, fontWeight: 600, mt: 0.5 }}>
               총 작업건수
             </Typography>
           </Box>
         </Box>
-        <Box sx={{ display: "grid", gap: 1.5 }}>
+        <Box sx={{ display: "grid", gap: 1.5, flexShrink: 0, minWidth: 104 }}>
           {distribution.map((item) => (
             <Box key={item.label} sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
               <Box
@@ -289,7 +294,7 @@ function DonutChartPanel({
                   flexShrink: 0
                 }}
               />
-              <Typography sx={{ fontSize: 14, color: panelText, lineHeight: 1.2 }}>
+              <Typography sx={{ fontSize: { xs: 13, sm: 14 }, color: panelText, lineHeight: 1.2, whiteSpace: "nowrap", flexShrink: 0 }}>
                 <Box component="span" sx={{ fontWeight: 800 }}>
                   {item.label}
                 </Box>
@@ -432,15 +437,15 @@ function WeatherPanel({ weather }: { weather: DashboardResponse["weather"] }) {
   return (
     <PanelPaper>
       <PanelHeader title="현재 기상정보" />
-      <Box sx={{ display: "flex", gap: 3, alignItems: "center" }}>
-        <Box sx={{ textAlign: "center", minWidth: 100, pr: 1.5 }}>
-          <WbSunnyIcon sx={{ fontSize: 48, color: "#f59e0b" }} />
+      <Box sx={{ display: "flex", gap: { xs: 1.5, md: 3 }, alignItems: "center" }}>
+        <Box sx={{ textAlign: "center", minWidth: { xs: 80, md: 100 }, pr: { xs: 1, md: 1.5 } }}>
+          <WbSunnyIcon sx={{ fontSize: { xs: 38, md: 48 }, color: "#f59e0b" }} />
           <Typography
-            sx={{ fontSize: 36, lineHeight: 1, fontWeight: 700, mt: 0.5, color: "#1d4ed8" }}
+            sx={{ fontSize: { xs: 28, sm: 32, md: 36 }, lineHeight: 1, fontWeight: 700, mt: 0.5, color: "#1d4ed8" }}
           >
             {tempText}
           </Typography>
-          <Typography sx={{ color: mutedText, fontWeight: 600, fontSize: 14, mt: 0.5 }}>
+          <Typography sx={{ color: mutedText, fontWeight: 600, fontSize: { xs: 12, md: 14 }, mt: 0.5 }}>
             {skyText}
           </Typography>
         </Box>
@@ -450,10 +455,10 @@ function WeatherPanel({ weather }: { weather: DashboardResponse["weather"] }) {
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                 {item.icon}
                 <Box>
-                  <Typography sx={{ fontSize: 11, color: mutedText, fontWeight: 600 }}>
+                  <Typography sx={{ fontSize: { xs: 10, md: 11 }, color: mutedText, fontWeight: 600 }}>
                     {item.label}
                   </Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 700, color: panelText }}>
+                  <Typography sx={{ fontSize: { xs: 12, md: 13 }, fontWeight: 700, color: panelText }}>
                     {item.value}
                   </Typography>
                 </Box>
@@ -580,7 +585,7 @@ function DashboardPage() {
         height: "100%",
         maxHeight: "100%",
         overflowY: "auto",
-        px: 2.5,
+        px: { xs: 1.25, sm: 2.5 },
         py: 1.75,
         color: panelText,
         background: "linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%)"
@@ -599,12 +604,17 @@ function DashboardPage() {
         <Typography variant="h2" sx={{ fontSize: 20, m: 0, color: panelText }}>
           대시보드
         </Typography>
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
+        <Box sx={{ display: "flex", 
+                   gap: 1, 
+                   flexWrap: "wrap",
+                   width: { xs: "100%", sm: "auto" },
+                   flexDirection: { xs: "column", sm: "row" } }}>
+          <FormControl size="small" sx={{ minWidth: {xs: 0, sm: 140 }, width: { xs: "100%", sm: "auto"} }}>
             <Select
               value={selectedPlant}
               onChange={(event) => setSelectedPlant(event.target.value)}
               sx={{
+                width: "100%",
                 height: 36,
                 fontWeight: 600,
                 fontSize: 13,
@@ -705,10 +715,14 @@ function DashboardPage() {
               sx={{
                 border: `1px solid ${panelBorder}`,
                 borderRadius: 0,
-                overflow: "hidden"
+                overflowX: "auto"
               }}
             >
-              <Table size="small">
+              <Table 
+                size="small"
+                sx = {{
+                  minWidth: { xs: 620, md: "100%" }
+                }}>
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ ...tableHeadCellSx, textAlign: "left" }}>TBM 번호</TableCell>

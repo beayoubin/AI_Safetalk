@@ -947,7 +947,21 @@ function TbmHistoryPage() {
           </Box>
         ) : null}
 
-        <TableContainer sx={{ overflow: "hidden", px: 1.5, py: 0.75 }}>
+        <TableContainer sx={{
+          overflow: "hidden",
+          px: 1.5,
+          py: 0.75,
+
+          "@media (max-width: 599px)": {
+            display: "block",
+            width: "100%",
+            maxWidth: "100%",
+            overflowX: "auto",
+            overflowY: "hidden",
+            px: 0.75,
+            WebkitOverflowScrolling: "touch"
+          }
+        }}>
           <Paper
             elevation={0}
             sx={{
@@ -957,7 +971,13 @@ function TbmHistoryPage() {
               bgcolor: tableBg
             }}
           >
-            <Table size="small">
+            <Table
+              size="small"
+              sx={{
+                "@media (max-width: 599px)": {
+                  minWidth: 850
+                }
+              }}>
               <TableHead>
                 <TableRow>
                   {[
