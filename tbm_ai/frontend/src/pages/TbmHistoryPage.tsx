@@ -807,13 +807,25 @@ function TbmHistoryPage() {
   return (
     <Box
       sx={{
-        height: "100%",
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+
+        minHeight: "100%",
         bgcolor: pageBg,
         backgroundImage: pageGradient,
-        px: 2.5,
+
+        px: {
+          xs: 1,
+          sm: 2.5
+        },
         py: 1.75,
+
         boxSizing: "border-box",
-        overflow: "hidden",
+
+        overflowX: "hidden",
+        overflowY: "auto",
+
         display: "flex",
         flexDirection: "column"
       }}
@@ -838,16 +850,37 @@ function TbmHistoryPage() {
       >
         <Box
           sx={{
-            px: 1.5,
+            px: {
+              xs: 1,
+              sm: 1.5
+            },
             py: 1,
             borderBottom: `1px solid ${panelBorder}`,
+
             display: "flex",
+            flexDirection: {
+              xs: "column",
+              sm: "row"
+            },
+
             gap: 1,
-            alignItems: "flex-end",
-            flexWrap: "wrap"
+            alignItems: {
+              xs: "stretch",
+              sm: "flex-end"
+            },
+
+            flexWrap: {
+              xs: "nowrap",
+              sm: "wrap"
+            }
           }}
         >
-          <Box sx={{ minWidth: 160 }}>
+          <Box
+            sx={{
+              width: { xs: "100%", sm: 160 },
+              minWidth: { xs: 0, sm: 160 }
+            }}
+          >
             <Typography sx={{ fontSize: 11, color: mutedText, mb: 0.35 }}>작업유형</Typography>
             <FormControl size="small" fullWidth>
               <Select
@@ -868,7 +901,12 @@ function TbmHistoryPage() {
               </Select>
             </FormControl>
           </Box>
-          <Box sx={{ minWidth: 160 }}>
+          <Box
+            sx={{
+              width: { xs: "100%", sm: 160 },
+              minWidth: { xs: 0, sm: 160 }
+            }}
+          >
             <Typography sx={{ fontSize: 11, color: mutedText, mb: 0.35 }}>위험등급</Typography>
             <FormControl size="small" fullWidth>
               <Select
@@ -907,9 +945,18 @@ function TbmHistoryPage() {
               }
             }}
             sx={{
-              minWidth: 220,
-              "& .MuiInputBase-root": { ...controlSx },
-              "& .MuiInputBase-input::placeholder": { color: mutedText, opacity: 1 }
+              width: { xs: "100%", sm: 220 },
+              minWidth: { xs: 0, sm: 220 },
+
+              "& .MuiInputBase-root": {
+                ...controlSx,
+                width: "100%"
+              },
+
+              "& .MuiInputBase-input::placeholder": {
+                color: mutedText,
+                opacity: 1
+              }
             }}
           />
           <Button
@@ -922,6 +969,7 @@ function TbmHistoryPage() {
               setPage(0);
             }}
             sx={{
+              width: { xs: "100%", sm: "auto" },
               height: 32,
               borderColor: panelBorder,
               color: panelText,
@@ -947,37 +995,41 @@ function TbmHistoryPage() {
           </Box>
         ) : null}
 
-        <TableContainer sx={{
-          overflow: "hidden",
-          px: 1.5,
-          py: 0.75,
-
-          "@media (max-width: 599px)": {
-            display: "block",
+        <TableContainer
+          sx={{
             width: "100%",
             maxWidth: "100%",
+            minWidth: 0,
+
             overflowX: "auto",
             overflowY: "hidden",
-            px: 0.75,
+
+            px: {
+              xs: 0.75,
+              sm: 1.5
+            },
+            py: 0.75,
+
+            boxSizing: "border-box",
             WebkitOverflowScrolling: "touch"
-          }
-        }}>
+          }}
+        >
           <Paper
             elevation={0}
             sx={{
               borderRadius: 0,
               border: `1px solid ${panelBorder}`,
-              overflow: "hidden",
-              bgcolor: tableBg
+              bgcolor: tableBg,
+              width: "max-content",
+              minWidth: "100%"
             }}
           >
             <Table
               size="small"
               sx={{
-                "@media (max-width: 599px)": {
-                  minWidth: 850
-                }
-              }}>
+                minWidth: 850
+              }}
+            >
               <TableHead>
                 <TableRow>
                   {[
@@ -1192,7 +1244,16 @@ function TbmHistoryPage() {
               <NavigateNextRoundedIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+          <Box
+            sx={{
+              display: {
+                xs: "none",
+                sm: "flex"
+              },
+              alignItems: "center",
+              gap: 0.75
+            }}
+          >
             <FormControl size="small">
               <Select
                 value={rowsPerPage}
