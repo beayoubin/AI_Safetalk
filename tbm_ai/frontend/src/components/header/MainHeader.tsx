@@ -52,6 +52,15 @@ type TbmHistoryListResponse = {
   rows?: Array<{ id: number; title: string; createdAt: string }>;
 };
 
+type NotificationReadIdsResponse = {
+  ok?: boolean;
+  readIds?: string[];
+};
+
+type MarkNotificationsReadResponse = {
+  ok?: boolean;
+}
+
 const formatKoreanDateTime = (value: string): string => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -94,9 +103,10 @@ function MainHeader() {
     const loadNotifications = async () => {
       setIsLoadingNotifications(true);
       try {
-        const [weatherRes, tbmRes] = await Promise.allSettled([
+        const [weatherRes, tbmRes, readIdsRes] = await Promise.allSettled([
           apiFetch(`/weather/current`),
-          apiFetch(`/tbm/history?limit=5`)
+          apiFetch(`/tbm/history?limit=5`),
+          apiFetch(`/notifications/read-ids`) //알림기능
         ]);
         const next: HeaderNotification[] = [];
 
@@ -154,13 +164,37 @@ function MainHeader() {
           }
         }
 
+        let savedReadIds: string[] = [];
+
+        if (readIdsRes.status === "fulfilled") {
+          const readIdsBody = (await readIdsRes.value
+            .json()
+            .catch(() => ({}))) as NotificationReadIdsResponse;
+
+          if (
+            readIdsRes.value.ok &&
+            readIdsBody.ok &&
+            Array.isArray(readIdsBody.readIds)
+          ) {
+            savedReadIds = readIdsBody.readIds;
+          }
+        }
+
         next.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         if (!cancelled) {
           setNotifications(next);
-          setReadNotificationIds((prev) => {
-            const nextIds = new Set(next.map((item) => item.id));
-            return new Set([...prev].filter((id) => nextIds.has(id)));
-          });
+
+          const currentNotificationIds = new Set(
+            next.map((item) => item.id)
+          );
+
+          setReadNotificationIds(
+            new Set(
+              savedReadIds.filter((id) =>
+                currentNotificationIds.has(id)
+              )
+            )
+          );
         }
       } finally {
         if (!cancelled) {
@@ -186,13 +220,46 @@ function MainHeader() {
     { label: "TBM 이력 관리", path: "/tbm-history", hasArrow: false }
   ];
 
-  const handleOpenAlertMenu = (anchor: HTMLElement) => {
+  const handleOpenAlertMenu = async (anchor: HTMLElement) => {
     setAlertAnchorEl(anchor);
+
+    const notificationIds = notifications.map((item) => item.id);
+
+    if (notificationIds.length === 0) {
+      return;
+    }
+
     setReadNotificationIds((prev) => {
       const next = new Set(prev);
-      notifications.forEach((item) => next.add(item.id));
+
+      notificationIds.forEach((id) => {
+        next.add(id);
+      });
+
       return next;
     });
+
+    try {
+      const response = await apiFetch(`/notifications/read`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          notificationIds
+        })
+      });
+
+      const body = (await response
+        .json()
+        .catch(() => ({}))) as MarkNotificationsReadResponse;
+
+      if (!response.ok || !body.ok) {
+        throw new Error("알림 읽음 저장에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("알림 읽음 저장 오류:", error);
+    }
   };
 
   return (

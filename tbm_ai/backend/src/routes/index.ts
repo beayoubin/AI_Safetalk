@@ -8,6 +8,7 @@ import siteRouter from "./site.route";
 import tbmRouter from "./tbm.route";
 import weatherRouter from "./weather.route";
 import workPermitRouter from "./work-permit.route";
+import notificationRouter from "./notification.route"; //알림기능
 
 const apiRouter = Router();
 
@@ -20,5 +21,6 @@ apiRouter.use("/", dashboardRouter);
 apiRouter.use("/", siteRouter);
 apiRouter.use("/", workPermitRouter);
 apiRouter.use("/", authRouter);
+apiRouter.use("/", notificationRouter); //알림기능
 
 export default apiRouter;
