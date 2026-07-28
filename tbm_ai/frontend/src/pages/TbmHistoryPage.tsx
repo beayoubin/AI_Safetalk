@@ -112,13 +112,20 @@ const EMPTY_SIGNATURE: TbmSignatureData = {
 const riskChipStyle: Record<string, { color: string; borderColor: string; bgcolor: string }> = {
   HIGH: { color: "#dc2626", borderColor: "#fecaca", bgcolor: "#fef2f2" },
   MEDIUM: { color: "#b45309", borderColor: "#fde68a", bgcolor: "#fffbeb" },
-  LOW: { color: "#047857", borderColor: "#a7f3d0", bgcolor: "#ecfdf5" }
+  LOW: { color: "#047857", borderColor: "#a7f3d0", bgcolor: "#ecfdf5" },
+  CRITICAL: { color: "#7f1d1d", borderColor: "#fca5a5", bgcolor: "#fee2e2" }
 };
 
-const normalizeRiskLevel = (value: string): "HIGH" | "MEDIUM" | "LOW" => {
+const normalizeRiskLevel = (
+  value: string
+): "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" => {
   const normalized = value.trim().toUpperCase();
+
+  if (normalized === "CRITICAL" || normalized === "최상") return "CRITICAL";
   if (normalized === "HIGH" || normalized === "상") return "HIGH";
+  if (normalized === "MEDIUM" || normalized === "중") return "MEDIUM";
   if (normalized === "LOW" || normalized === "하") return "LOW";
+
   return "MEDIUM";
 };
 
