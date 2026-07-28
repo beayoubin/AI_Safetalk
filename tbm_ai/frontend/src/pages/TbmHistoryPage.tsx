@@ -12,7 +12,6 @@ import DialogTitle from "@mui/material/DialogTitle";
 import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
-import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Select from "@mui/material/Select";
@@ -22,7 +21,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
@@ -30,7 +28,6 @@ import NavigateBeforeRoundedIcon from "@mui/icons-material/NavigateBeforeRounded
 import NavigateNextRoundedIcon from "@mui/icons-material/NavigateNextRounded";
 import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import SearchIcon from "@mui/icons-material/Search";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 
 const pageBg = "#ffffff";
@@ -52,6 +49,11 @@ const darkNavyText = "#ffffff";
 type WorkTypeOption = {
   code: string;
   name: string;
+};
+
+type SiteOption = {
+  siteId: number;
+  siteName: string;
 };
 
 type CodeOptionsResponse = {
@@ -361,7 +363,8 @@ function TbmHistoryPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [workType, setWorkType] = useState("all");
   const [risk, setRisk] = useState("all");
-  const [search, setSearch] = useState("");
+  const [selectedSite, setSelectedSite] = useState("all");
+  const [siteOptions, setSiteOptions] = useState<SiteOption[]>([]);
   const [workTypeOptions, setWorkTypeOptions] = useState<WorkTypeOption[]>([]);
   const [riskOptions, setRiskOptions] = useState<string[]>([]);
   const [rows, setRows] = useState<TbmHistoryRow[]>([]);
@@ -453,6 +456,43 @@ function TbmHistoryPage() {
     void loadCodeOptions();
   }, []);
 
+  useEffect(() => {
+    const loadSiteOptions = async () => {
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+
+        const params = new URLSearchParams({
+          date: today
+        });
+
+        const response = await apiFetch(
+          `/dashboard/summary?${params.toString()}`
+        );
+
+        const result = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          siteOptions?: SiteOption[];
+          message?: string;
+        };
+
+        if (!response.ok || !result.ok) {
+          setSiteOptions([]);
+          return;
+        }
+
+        setSiteOptions(
+          Array.isArray(result.siteOptions)
+            ? result.siteOptions
+            : []
+        );
+      } catch {
+        setSiteOptions([]);
+      }
+    };
+
+    void loadSiteOptions();
+  }, []);
+
   const loadRows = async () => {
     setIsLoadingRows(true);
     setErrorMessage("");
@@ -461,9 +501,17 @@ function TbmHistoryPage() {
         page: String(page),
         pageSize: String(rowsPerPage)
       });
-      if (workType !== "all") params.set("workType", workType);
-      if (risk !== "all") params.set("risk", risk);
-      if (search.trim()) params.set("search", search.trim());
+      if (workType !== "all") {
+        params.set("workType", workType);
+      }
+
+      if (risk !== "all") {
+        params.set("risk", risk);
+      }
+
+      if (selectedSite !== "all") {
+        params.set("search", selectedSite);
+      }
 
       const response = await apiFetch(`/tbm/history-list?${params.toString()}`);
       const result = (await response.json().catch(() => ({}))) as TbmHistoryListResponse;
@@ -484,7 +532,7 @@ function TbmHistoryPage() {
   useEffect(() => {
     void loadRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage, workType, risk, search]);
+  }, [page, rowsPerPage, workType, risk, selectedSite]);
 
   const getSignatureCanvas = (kind: SignatureKind): HTMLCanvasElement | null =>
     kind === "worker" ? workerSignatureCanvasRef.current : supervisorSignatureCanvasRef.current;
@@ -763,7 +811,30 @@ function TbmHistoryPage() {
   };
 
   const renderSignaturePad = (kind: SignatureKind, label: string) => (
-    <Box sx={{ p: 0.9, borderRight: kind === "worker" ? `1px solid ${panelBorder}` : "none" }}>
+    <Box
+      sx={{
+        p: {
+          xs: 1,
+          sm: 0.9
+        },
+
+        borderRight: {
+          xs: "none",
+          sm:
+            kind === "worker"
+              ? `1px solid ${panelBorder}`
+              : "none"
+        },
+
+        borderBottom: {
+          xs:
+            kind === "worker"
+              ? `1px solid ${panelBorder}`
+              : "none",
+          sm: "none"
+        }
+      }}
+    >
       <Box
         sx={{
           display: "flex",
@@ -773,7 +844,16 @@ function TbmHistoryPage() {
           mb: 0.7
         }}
       >
-        <Typography sx={{ fontSize: 13, fontWeight: 700, color: panelText }}>{label}</Typography>
+        <Typography
+          sx={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: panelText,
+            whiteSpace: "nowrap"
+          }}
+        >
+          {label}
+        </Typography>
         <Button
           size="small"
           variant="outlined"
@@ -787,6 +867,7 @@ function TbmHistoryPage() {
             color: panelText,
             borderColor: panelBorder,
             borderRadius: 0,
+            whiteSpace: "nowrap",
             textTransform: "none",
             "&:hover": { borderColor: accentBlue, bgcolor: "#eff6ff" }
           }}
@@ -961,45 +1042,58 @@ function TbmHistoryPage() {
               </Select>
             </FormControl>
           </Box>
-          <TextField
-            size="small"
-            placeholder="작업장소로 검색"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(0);
-            }}
-            slotProps={{
-              input: {
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <SearchIcon sx={{ fontSize: 16, color: mutedText }} />
-                  </InputAdornment>
-                )
-              }
-            }}
+          <Box
             sx={{
               width: { xs: "100%", sm: 220 },
-              minWidth: { xs: 0, sm: 220 },
-
-              "& .MuiInputBase-root": {
-                ...controlSx,
-                width: "100%"
-              },
-
-              "& .MuiInputBase-input::placeholder": {
-                color: mutedText,
-                opacity: 1
-              }
+              minWidth: { xs: 0, sm: 220 }
             }}
-          />
+          >
+            <Typography
+              sx={{
+                fontSize: 11,
+                color: mutedText,
+                mb: 0.35
+              }}
+            >
+              작업장소
+            </Typography>
+
+            <FormControl size="small" fullWidth>
+              <Select
+                value={selectedSite}
+                onChange={(event) => {
+                  setSelectedSite(event.target.value);
+                  setPage(0);
+                }}
+                sx={controlSx}
+                MenuProps={{
+                  slotProps: {
+                    paper: {
+                      sx: menuPaperSx
+                    }
+                  }
+                }}
+              >
+                <MenuItem value="all">전체</MenuItem>
+
+                {siteOptions.map((site) => (
+                  <MenuItem
+                    key={site.siteId}
+                    value={site.siteName}
+                  >
+                    {site.siteName}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
           <Button
             variant="outlined"
             startIcon={<RefreshRoundedIcon sx={{ fontSize: 14 }} />}
             onClick={() => {
               setWorkType("all");
               setRisk("all");
-              setSearch("");
+              setSelectedSite("all");
               setPage(0);
             }}
             sx={{
@@ -1354,7 +1448,18 @@ function TbmHistoryPage() {
         >
           {viewTitle || "TBM 대본"}
         </DialogTitle>
-        <DialogContent dividers sx={{ borderColor: panelBorder, bgcolor: pageBg }}>
+        <DialogContent
+          dividers
+          sx={{
+            borderColor: panelBorder,
+            bgcolor: pageBg,
+
+            p: {
+              xs: 0,
+              sm: 3
+            }
+          }}
+        >
           {viewLoading ? (
             <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
               <CircularProgress size={24} sx={{ color: accentBlue }} />
@@ -1363,26 +1468,49 @@ function TbmHistoryPage() {
             <Box
               sx={{
                 bgcolor: panelBg,
-                border: `1px solid ${panelBorder}`,
+
+                border: {
+                  xs: "none",
+                  sm: `1px solid ${panelBorder}`
+                },
+
                 color: panelText,
-                p: 2
+
+                p: {
+                  xs: 2,
+                  sm: 2
+                }
               }}
             >
               <Typography
                 sx={{
                   textAlign: "center",
-                  fontSize: 24,
+                  fontSize: {
+                    xs: 20,
+                    sm: 24
+                  },
                   fontWeight: 800,
-                  mb: 1.25,
-                  color: panelText
+                  mb: {
+                    xs: 2,
+                    sm: 1.25
+                  },
+                  color: panelText,
+                  lineHeight: 1.3,
+                  wordBreak: "keep-all"
                 }}
               >
                 TBM 실행 시나리오
               </Typography>
-              <Box sx={{ border: `1px solid ${panelBorder}` }}>
+
+              <Box sx={{
+                border: { xs: "none", sm: `1px solid ${panelBorder}` }
+              }}>
                 <Box
                   sx={{
-                    display: "grid",
+                    display: {
+                      xs: "none",
+                      sm: "grid"
+                    },
                     gridTemplateColumns: "180px 1fr",
                     bgcolor: tableHeaderBg,
                     borderBottom: `1px solid ${panelBorder}`
@@ -1399,48 +1527,144 @@ function TbmHistoryPage() {
                   >
                     구분
                   </Box>
-                  <Box sx={{ p: 0.8, fontSize: 13, fontWeight: 700, textAlign: "center" }}>
+
+                  <Box
+                    sx={{
+                      p: 0.8,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      textAlign: "center"
+                    }}
+                  >
                     T.B.M 리더 멘트
                   </Box>
                 </Box>
+
                 {buildPreviewSections(viewText).map((section, index, sections) => (
                   <Box
                     key={`${section.title}-${index}`}
                     sx={{
                       display: "grid",
-                      gridTemplateColumns: "180px 1fr",
-                      borderBottom:
-                        index === sections.length - 1 ? "none" : `1px solid ${panelBorder}`
+
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "180px 1fr"
+                      },
+
+                      mb: {
+                        xs: 1.5,
+                        sm: 0
+                      },
+
+                      border: {
+                        xs: `1px solid ${panelBorder}`,
+                        sm: "none"
+                      },
+
+                      borderRadius: {
+                        xs: 1,
+                        sm: 0
+                      },
+
+                      overflow: {
+                        xs: "hidden",
+                        sm: "visible"
+                      },
+
+                      borderBottom: {
+                        sm:
+                          index === sections.length - 1
+                            ? "none"
+                            : `1px solid ${panelBorder}`
+                      }
                     }}
                   >
                     <Box
                       sx={{
-                        p: 0.8,
-                        fontSize: 12.5,
+                        p: {
+                          xs: 1.25,
+                          sm: 0.8
+                        },
+
+                        fontSize: {
+                          xs: 14,
+                          sm: 12.5
+                        },
+
                         fontWeight: 700,
-                        borderRight: `1px solid ${panelBorder}`,
+
+                        borderRight: {
+                          xs: "none",
+                          sm: `1px solid ${panelBorder}`
+                        },
+
+                        borderBottom: {
+                          xs: `1px solid ${panelBorder}`,
+                          sm: "none"
+                        },
+
                         bgcolor: tableHeaderBg,
-                        textAlign: "center",
+                        color: panelText,
+
+                        textAlign: {
+                          xs: "left",
+                          sm: "center"
+                        },
+
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "center",
-                        gap: 0.25
+                        gap: 0.25,
+
+                        wordBreak: "keep-all"
                       }}
                     >
                       <span>{section.title}</span>
+
                       {section.subtitle ? (
-                        <span style={{ fontWeight: 500 }}>{section.subtitle}</span>
+                        <Typography
+                          component="span"
+                          sx={{
+                            fontWeight: 500,
+                            fontSize: {
+                              xs: 12,
+                              sm: "inherit"
+                            }
+                          }}
+                        >
+                          {section.subtitle}
+                        </Typography>
                       ) : null}
                     </Box>
+
                     <Typography
                       component="pre"
                       sx={{
                         m: 0,
-                        p: 1,
+
+                        p: {
+                          xs: 1.5,
+                          sm: 1
+                        },
+
+                        minWidth: 0,
                         whiteSpace: "pre-wrap",
                         fontFamily: "inherit",
-                        fontSize: 13,
-                        lineHeight: 1.65
+
+                        fontSize: {
+                          xs: 14,
+                          sm: 13
+                        },
+
+                        lineHeight: {
+                          xs: 1.75,
+                          sm: 1.65
+                        },
+
+                        wordBreak: "keep-all",
+                        overflowWrap: "break-word",
+                        color: panelText,
+                        bgcolor: panelBg
                       }}
                     >
                       {section.content}
@@ -1454,17 +1678,28 @@ function TbmHistoryPage() {
                     p: 0.85,
                     bgcolor: tableHeaderBg,
                     borderBottom: `1px solid ${panelBorder}`,
-                    color: panelText,
-                    fontSize: 14,
-                    fontWeight: 800,
-                    textAlign: "center"
                   }}
                 >
-                  체크리스트/서명(PPE/LOTO)
+                  <Typography
+                    sx={{
+                      fontSize: 14,
+                      fontWeight: 800,
+                      color: panelText,
+                      textAlign: "center",
+                    }}
+                  >
+                    체크리스트/서명(PPE/LOTO)
+                  </Typography>
+
                   {signatureSaveMessage ? (
                     <Typography
-                      component="span"
-                      sx={{ ml: 1, fontSize: 11, fontWeight: 600, color: mutedText }}
+                      sx={{
+                        mt: 0.5,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: mutedText,
+                        textAlign: "center",
+                      }}
                     >
                       {signatureSaveMessage}
                     </Typography>
@@ -1473,7 +1708,10 @@ function TbmHistoryPage() {
                 <Box
                   sx={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(3, minmax(0, 1fr))"
+                    },
                     borderBottom: `1px solid ${panelBorder}`
                   }}
                 >
@@ -1481,14 +1719,34 @@ function TbmHistoryPage() {
                     <Box
                       key={item}
                       sx={{
-                        p: 0.75,
-                        borderRight:
-                          index === SIGNATURE_CHECKLIST_ITEMS.length - 1
-                            ? "none"
-                            : `1px solid ${panelBorder}`,
+                        p: {
+                          xs: 0.75,
+                          sm: 0.75
+                        },
+
+                        borderRight: {
+                          xs: "none",
+                          sm:
+                            index === SIGNATURE_CHECKLIST_ITEMS.length - 1
+                              ? "none"
+                              : `1px solid ${panelBorder}`
+                        },
+
+                        borderBottom: {
+                          xs:
+                            index === SIGNATURE_CHECKLIST_ITEMS.length - 1
+                              ? "none"
+                              : `1px solid ${panelBorder}`,
+                          sm: "none"
+                        },
+
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center"
+
+                        justifyContent: {
+                          xs: "flex-start",
+                          sm: "center"
+                        }
                       }}
                     >
                       <FormControlLabel
@@ -1511,13 +1769,26 @@ function TbmHistoryPage() {
                         sx={{
                           m: 0,
                           color: panelText,
-                          "& .MuiFormControlLabel-label": { fontSize: 13, fontWeight: 700 }
+
+                          "& .MuiFormControlLabel-label": {
+                            fontSize: 13,
+                            fontWeight: 700,
+                            whiteSpace: "nowrap"
+                          }
                         }}
                       />
                     </Box>
                   ))}
                 </Box>
-                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "1fr 1fr"
+                    }
+                  }}
+                >
                   {renderSignaturePad("worker", "작업자 서명")}
                   {renderSignaturePad("supervisor", "감독자 서명")}
                 </Box>
@@ -1541,13 +1812,55 @@ function TbmHistoryPage() {
               bgcolor: panelBg,
               color: panelText,
               border: `1px solid ${panelBorder}`,
-              borderRadius: 0
+              borderRadius: 0,
+
+              width: {
+                xs: "calc(100vw - 16px)",
+                sm: "100%"
+              },
+
+              maxWidth: {
+                xs: "calc(100vw - 16px)",
+                sm: undefined
+              },
+
+              height: {
+                xs: "calc(100dvh - 16px)",
+                sm: "auto"
+              },
+
+              maxHeight: {
+                xs: "calc(100dvh - 16px)",
+                sm: "90vh"
+              },
+
+              m: {
+                xs: 1,
+                sm: 4
+              }
             }
           }
         }}
       >
         <DialogTitle
-          sx={{ fontSize: 16, fontWeight: 700, borderBottom: `1px solid ${panelBorder}` }}
+          sx={{
+            fontSize: {
+              xs: 16,
+              sm: 17
+            },
+            fontWeight: 700,
+            borderBottom: `1px solid ${panelBorder}`,
+            px: {
+              xs: 2,
+              sm: 3
+            },
+            py: {
+              xs: 1.5,
+              sm: 2
+            },
+            lineHeight: 1.5,
+            wordBreak: "keep-all"
+          }}
         >
           TBM 이력 삭제
         </DialogTitle>
