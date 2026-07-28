@@ -2,6 +2,7 @@ import "dotenv/config";
 import app from "./app";
 import { checkDatabaseConnection } from "../config/database";
 import { env } from "../config/env";
+import { startRagAutoSync } from "./services/rag.service";
 import { startWeatherSync } from "./services/weather-sync.service";
 
 const port = env.port;
@@ -22,6 +23,7 @@ const startServer = async () => {
       }`
     );
     startWeatherSync();
+    startRagAutoSync();
   });
 };
 

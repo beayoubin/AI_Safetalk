@@ -21,6 +21,7 @@ export type RagDocumentRow = {
   body: string;
   source: string;
   source_url: string | null;
+  work_type_code: string | null;
   work_type: string | null;
   risk_level: string | null;
   process: string | null;
@@ -43,7 +44,7 @@ export const ensureRagDocumentTable = async (): Promise<void> => {
       body TEXT NOT NULL,
       source VARCHAR(120) NOT NULL,
       source_url VARCHAR(500) NULL,
-      work_type VARCHAR(100) NULL,
+      work_type_code VARCHAR(20) NULL,
       risk_level VARCHAR(30) NULL,
       process VARCHAR(100) NULL,
       weather_type VARCHAR(30) NULL,
@@ -73,19 +74,23 @@ export const upsertRagDocuments = async (rows: RagDocumentInput[]): Promise<numb
           body,
           source,
           source_url,
-          work_type,
+          work_type_code,
           risk_level,
           process,
           weather_type,
           effective_date,
           active_yn
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (
+          ?, ?, ?, ?, ?,
+          (SELECT w.work_type_code FROM code_work_type w WHERE w.work_type_name = ? OR w.work_type_code = ? LIMIT 1),
+          ?, ?, ?, ?, ?
+        )
         ON DUPLICATE KEY UPDATE
           title = VALUES(title),
           body = VALUES(body),
           source = VALUES(source),
           source_url = VALUES(source_url),
-          work_type = VALUES(work_type),
+          work_type_code = VALUES(work_type_code),
           risk_level = VALUES(risk_level),
           process = VALUES(process),
           weather_type = VALUES(weather_type),
@@ -98,6 +103,7 @@ export const upsertRagDocuments = async (rows: RagDocumentInput[]): Promise<numb
         row.body,
         row.source,
         row.sourceUrl,
+        row.workType,
         row.workType,
         row.riskLevel,
         row.process,
@@ -116,20 +122,22 @@ export const listActiveRagDocuments = async (): Promise<RagDocumentRow[]> => {
   const [rows] = await dbPool.query(
     `
       SELECT
-        id,
-        external_key,
-        title,
-        body,
-        source,
-        source_url,
-        work_type,
-        risk_level,
-        process,
-        weather_type,
-        DATE_FORMAT(effective_date, '%Y-%m-%d') AS effective_date
-      FROM rag_document
-      WHERE active_yn = 'Y'
-      ORDER BY id ASC
+        rd.id,
+        rd.external_key,
+        rd.title,
+        rd.body,
+        rd.source,
+        rd.source_url,
+        rd.work_type_code,
+        w.work_type_name AS work_type,
+        rd.risk_level,
+        rd.process,
+        rd.weather_type,
+        DATE_FORMAT(rd.effective_date, '%Y-%m-%d') AS effective_date
+      FROM rag_document rd
+      LEFT JOIN code_work_type w ON w.work_type_code = rd.work_type_code
+      WHERE rd.active_yn = 'Y'
+      ORDER BY rd.id ASC
     `
   );
   return rows as RagDocumentRow[];
@@ -150,19 +158,21 @@ export const findRealIncidentCasesByWorkType = async (
         body,
         source,
         source_url,
-        work_type,
+        rd.work_type_code,
+        w.work_type_name AS work_type,
         risk_level,
         process,
         weather_type,
         DATE_FORMAT(effective_date, '%Y-%m-%d') AS effective_date
-      FROM rag_document
-      WHERE active_yn = 'Y'
-        AND source <> 'seed-generator'
-        AND (work_type = ? OR work_type IS NULL)
-      ORDER BY (work_type = ?) DESC, id ASC
+      FROM rag_document rd
+      LEFT JOIN code_work_type w ON w.work_type_code = rd.work_type_code
+      WHERE rd.active_yn = 'Y'
+        AND rd.source <> 'seed-generator'
+        AND (w.work_type_name = ? OR rd.work_type_code = ? OR rd.work_type_code IS NULL)
+      ORDER BY (w.work_type_name = ? OR rd.work_type_code = ?) DESC, rd.id ASC
       LIMIT ${safeLimit}
     `,
-    [workType, workType]
+    [workType, workType, workType, workType]
   );
   return rows as RagDocumentRow[];
 };

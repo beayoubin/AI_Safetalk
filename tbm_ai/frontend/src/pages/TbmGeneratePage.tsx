@@ -35,6 +35,15 @@ type AdditionalTbmInputs = {
   siteHazards: string;
   safetyMeasures: string;
   emergencyNotes: string;
+  specialNotes: string;
+};
+
+type FollowUpQuestion = {
+  key: keyof Omit<AdditionalTbmInputs, "specialNotes">;
+  label: string;
+  outputLabel: string;
+  helperText: string;
+  options: string[];
 };
 
 type WorkTypeOption = {
@@ -55,6 +64,27 @@ type CodeOptionsResponse = {
   workTypes?: WorkTypeOption[];
   riskLevels?: string[];
   permitTypes?: string[];
+  workShifts?: string[];
+  tbmSurvey?: TbmSurveyConfig;
+};
+
+type TbmSurveyQuestionConfig = {
+  key: keyof Omit<AdditionalTbmInputs, "specialNotes">;
+  label: string;
+  outputLabel: string;
+  helperText: string;
+};
+
+type TbmSurveyOptionConfig = {
+  questionKey: keyof Omit<AdditionalTbmInputs, "specialNotes">;
+  driverType: "default" | "category" | "risk" | "shift";
+  driverValue: string;
+  label: string;
+};
+
+type TbmSurveyConfig = {
+  questions: TbmSurveyQuestionConfig[];
+  options: TbmSurveyOptionConfig[];
 };
 
 type SiteOption = {
@@ -176,7 +206,6 @@ TBM 대본 어투는 아래 권장 표현을 기준으로 작성합니다.
 "유사 사고사례" 단계는 오늘 작업과 유사한 사고사례와 교훈을 짧게 전달합니다.
 "의견 및 질의응답" 단계는 작업자가 의견이나 질문을 말할 수 있도록 진행합니다.
 "지적확인" 단계는 선창-후창 구호 형식을 포함하되, 감탄 구호는 넣지 않습니다.`;
-const WORK_SHIFT_OPTIONS = ["주간", "야간", "교대", "비상작업"] as const;
 const INITIAL_PRESET: TbmPreset = {
   workType: "",
   permitType: "",
@@ -193,7 +222,8 @@ const INITIAL_ADDITIONAL_INPUTS: AdditionalTbmInputs = {
   detailedWork: "",
   siteHazards: "",
   safetyMeasures: "",
-  emergencyNotes: ""
+  emergencyNotes: "",
+  specialNotes: ""
 };
 
 type ScriptTemplateItem = {
@@ -335,6 +365,62 @@ const pickWorkProcedureStepsFE = (workType: string): string[] => {
   );
   return matched ? matched.steps : DEFAULT_WORK_PROCEDURE_STEPS_FE;
 };
+
+const normalizeRiskKey = (risk: string): string => {
+  if (risk.includes("CRITICAL")) return "CRITICAL";
+  if (risk.includes("HIGH")) return "HIGH";
+  if (risk.includes("MEDIUM")) return "MEDIUM";
+  return "LOW";
+};
+
+const fillSurveyHelperText = (template: string, preset: TbmPreset): string =>
+  template
+    .replace(/\{workType\}/g, preset.workType || "작업종류")
+    .replace(/\{risk\}/g, preset.risk || "위험등급")
+    .replace(/\{shift\}/g, preset.shift || "작업시간");
+
+const pickSurveyDriverValue = (
+  questionKey: FollowUpQuestion["key"],
+  preset: TbmPreset,
+  categoryCode: string
+): { driverType: TbmSurveyOptionConfig["driverType"]; driverValue: string } => {
+  if (["equipment", "requiredPpe", "detailedWork", "siteHazards"].includes(questionKey)) {
+    return { driverType: "category", driverValue: categoryCode };
+  }
+  if (questionKey === "safetyMeasures") {
+    return { driverType: "risk", driverValue: normalizeRiskKey(preset.risk) };
+  }
+  if (questionKey === "emergencyNotes") {
+    return { driverType: "shift", driverValue: preset.shift };
+  }
+  return { driverType: "default", driverValue: "default" };
+};
+
+const buildFollowUpQuestions = (
+  preset: TbmPreset,
+  categoryCode: string,
+  surveyConfig: TbmSurveyConfig | null
+): FollowUpQuestion[] =>
+  (surveyConfig?.questions ?? []).map((question) => {
+    const driver = pickSurveyDriverValue(question.key, preset, categoryCode);
+    const options =
+      surveyConfig?.options
+        .filter(
+          (option) =>
+            option.questionKey === question.key &&
+            option.driverType === driver.driverType &&
+            option.driverValue === driver.driverValue
+        )
+        .map((option) => option.label) ?? [];
+
+    return {
+      key: question.key,
+      label: question.label,
+      outputLabel: question.outputLabel,
+      helperText: fillSurveyHelperText(question.helperText, preset),
+      options
+    };
+  });
 
 const buildScriptSectionFallback = (title: string, preset: TbmPreset): string => {
   const location = preset.location || "현장";
@@ -1081,6 +1167,8 @@ function TbmGeneratePage() {
   const [workCategoryOptions, setWorkCategoryOptions] = useState<WorkCategoryOption[]>([]);
   const [selectedWorkCategoryCode, setSelectedWorkCategoryCode] = useState("");
   const [riskOptions, setRiskOptions] = useState<string[]>([]);
+  const [workShiftOptions, setWorkShiftOptions] = useState<string[]>([]);
+  const [tbmSurveyConfig, setTbmSurveyConfig] = useState<TbmSurveyConfig | null>(null);
   const [siteOptions, setSiteOptions] = useState<SiteOption[]>([]);
 
   const [preset, setPreset] = useState<TbmPreset>(INITIAL_PRESET);
@@ -1126,10 +1214,16 @@ function TbmGeneratePage() {
     preset.location.trim() !== "";
 
   const workTypeOptions = workCategoryOptions.flatMap((category) => category.workTypes);
-  const selectedWorkCategory = workCategoryOptions.find(
-    (category) => category.code === selectedWorkCategoryCode
+  const followUpQuestions = buildFollowUpQuestions(
+    preset,
+    selectedWorkCategoryCode,
+    tbmSurveyConfig
   );
-  const workTypeSubOptions = selectedWorkCategory?.workTypes ?? [];
+  const followUpReady =
+    presetReady &&
+    followUpQuestions.length > 0 &&
+    followUpQuestions.every((question) => additionalInputs[question.key].trim());
+  const readyToGenerate = followUpReady;
 
   const primaryScriptText = extractPrimaryScriptText(generatedText);
   const scriptSectionMap = extractSectionMapByAliases(primaryScriptText, SCRIPT_SECTION_ALIAS_MAP);
@@ -1204,14 +1298,10 @@ function TbmGeneratePage() {
   }));
 
   const additionalOptionLines = [
-    ["작업인원", additionalInputs.workerCount],
-    ["작업책임자", additionalInputs.supervisorName],
-    ["주요 장비/공구", additionalInputs.equipment],
-    ["필수 보호구/자재", additionalInputs.requiredPpe],
-    ["세부 작업내용", additionalInputs.detailedWork],
-    ["현장 특이사항/추가 위험요인", additionalInputs.siteHazards],
-    ["안전조치/작업중지 기준", additionalInputs.safetyMeasures],
-    ["비상대피/연락 특이사항", additionalInputs.emergencyNotes]
+    ...followUpQuestions.map(
+      (question) => [question.outputLabel, additionalInputs[question.key]] as const
+    ),
+    ["특이사항", additionalInputs.specialNotes] as const
   ]
     .map(([label, value]) => [label, value.trim()] as const)
     .filter(([, value]) => value.length > 0)
@@ -1572,13 +1662,25 @@ function TbmGeneratePage() {
         if (!response.ok || !result.ok) {
           setWorkCategoryOptions([]);
           setRiskOptions([]);
+          setWorkShiftOptions([]);
+          setTbmSurveyConfig(null);
           return;
         }
         setWorkCategoryOptions(Array.isArray(result.workCategories) ? result.workCategories : []);
         setRiskOptions(Array.isArray(result.riskLevels) ? result.riskLevels : []);
+        setWorkShiftOptions(Array.isArray(result.workShifts) ? result.workShifts : []);
+        setTbmSurveyConfig(
+          result.tbmSurvey &&
+            Array.isArray(result.tbmSurvey.questions) &&
+            Array.isArray(result.tbmSurvey.options)
+            ? result.tbmSurvey
+            : null
+        );
       } catch {
         setWorkCategoryOptions([]);
         setRiskOptions([]);
+        setWorkShiftOptions([]);
+        setTbmSurveyConfig(null);
       }
     };
 
@@ -1595,6 +1697,23 @@ function TbmGeneratePage() {
       setSelectedWorkCategoryCode(owningCategory.code);
     }
   }, [workCategoryOptions, preset.workType, selectedWorkCategoryCode]);
+
+  useEffect(() => {
+    setAdditionalInputs((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      for (const question of followUpQuestions) {
+        const selectedValue = next[question.key].trim();
+        if (selectedValue && !question.options.includes(selectedValue)) {
+          next[question.key] = "";
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [preset.workType, preset.risk, preset.shift, selectedWorkCategoryCode, tbmSurveyConfig]);
 
   const handleSearchAddress = async () => {
     const query = addressQuery.trim();
@@ -1664,7 +1783,7 @@ function TbmGeneratePage() {
   };
 
   const handleGenerate = async () => {
-    if (!presetReady || isGenerating) return;
+    if (!readyToGenerate || isGenerating) return;
 
     setHasRequestedPreview(true);
     setIsGenerating(true);
@@ -1779,30 +1898,45 @@ function TbmGeneratePage() {
     </Box>
   );
 
-  const renderAdditionalInputCard = (
-    index: number,
-    label: string,
-    keyName: keyof AdditionalTbmInputs,
-    placeholder: string,
-    multiline = false
-  ) => (
+  const renderFollowUpQuestionCard = (index: number, question: FollowUpQuestion) => (
+    <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
+      <SurveyFieldHeader index={index} label={question.label} />
+      <Typography sx={{ fontSize: 12, color: mutedText, mb: 0.8 }}>{question.helperText}</Typography>
+      <SelectionChipRow
+        options={question.options}
+        value={additionalInputs[question.key]}
+        onChange={(value) =>
+          setAdditionalInputs((prev) => ({
+            ...prev,
+            [question.key]: value
+          }))
+        }
+      />
+    </Paper>
+  );
+
+  const renderSpecialNotesCard = (index: number) => (
     <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
       <Typography sx={{ fontSize: 13, fontWeight: 700, color: panelText, mb: 0.75 }}>
-        {index}. {label}
+        {index}. 특이사항
+      </Typography>
+      <Typography sx={{ fontSize: 12, color: mutedText, mb: 0.8 }}>
+        현장 특이사항, 추가 위험요인, 전달사항이 있으면 작성해 주세요. 작성하지 않아도 TBM
+        생성이 가능합니다.
       </Typography>
       <TextField
         size="small"
         fullWidth
-        multiline={multiline}
-        minRows={multiline ? 3 : undefined}
-        value={additionalInputs[keyName]}
+        multiline
+        minRows={3}
+        value={additionalInputs.specialNotes}
         onChange={(event) =>
           setAdditionalInputs((prev) => ({
             ...prev,
-            [keyName]: event.target.value
+            specialNotes: event.target.value
           }))
         }
-        placeholder={placeholder}
+        placeholder="예: 주변 동시작업, 통행자 이동, 현장 변경사항, 추가 전달사항 등"
         sx={darkInputSx}
       />
     </Paper>
@@ -1902,7 +2036,7 @@ function TbmGeneratePage() {
                 label="작업시간"
                 value={preset.shift}
                 onChange={(value) => setPreset((prev) => ({ ...prev, shift: value }))}
-                options={[...WORK_SHIFT_OPTIONS]}
+                options={workShiftOptions}
               />
 
               <Paper elevation={0} sx={getSurveyFieldPaperSx(4)}>
@@ -1995,60 +2129,17 @@ function TbmGeneratePage() {
                 </Box>
               </Paper>
 
-              {renderAdditionalInputCard(6, "작업인원", "workerCount", "예: 8명")}
-              {renderAdditionalInputCard(
-                7,
-                "작업책임자",
-                "supervisorName",
-                "작업책임자 이름 또는 직책"
+              {followUpQuestions.map((question, index) =>
+                renderFollowUpQuestionCard(index + 6, question)
               )}
-              {renderAdditionalInputCard(
-                8,
-                "주요 장비/공구",
-                "equipment",
-                "예: 지게차, 절단기, 이동식 사다리"
-              )}
-              {renderAdditionalInputCard(
-                9,
-                "필수 보호구/자재",
-                "requiredPpe",
-                "예: 안전모, 보안경, 방진마스크, 소화기"
-              )}
-              {renderAdditionalInputCard(
-                10,
-                "세부 작업내용",
-                "detailedWork",
-                "오늘 실제로 수행할 작업 범위와 순서를 적어주세요.",
-                true
-              )}
-              {renderAdditionalInputCard(
-                11,
-                "현장 특이사항/추가 위험요인",
-                "siteHazards",
-                "협소 공간, 통행자, 고온 배관, 주변 동시작업 등 현장 특이사항을 적어주세요.",
-                true
-              )}
-              {renderAdditionalInputCard(
-                12,
-                "안전조치/작업중지 기준",
-                "safetyMeasures",
-                "출입통제, 신호수, LOTO, 화기감시, 작업중지 기준 등 필요한 조치를 적어주세요.",
-                true
-              )}
-              {renderAdditionalInputCard(
-                13,
-                "비상대피/연락 특이사항",
-                "emergencyNotes",
-                "비상집결지, 대피로, 응급 연락, 소화기 위치 등 특이사항을 적어주세요.",
-                true
-              )}
+              {renderSpecialNotesCard(14)}
 
-              <Paper elevation={0} sx={getSurveyFieldPaperSx(14)}>
+              <Paper elevation={0} sx={getSurveyFieldPaperSx(15)}>
                 <Button
                   fullWidth
                   variant="contained"
                   onClick={() => void handleGenerate()}
-                  disabled={!presetReady || isGenerating}
+                  disabled={!readyToGenerate || isGenerating}
                   sx={{
                     py: 1.2,
                     fontSize: 16,

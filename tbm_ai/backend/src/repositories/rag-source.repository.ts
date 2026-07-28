@@ -34,9 +34,19 @@ export const listRagSourceDocuments = async (): Promise<RagSourceDocument[]> => 
 
   const [workTypeRows] = await dbPool.query(
     `
-      SELECT work_type_code, work_type, sample_tasks, default_hazards
-      FROM code_work_type
-      ORDER BY work_type_code ASC
+      SELECT
+        w.work_type_code,
+        w.work_type_name AS work_type,
+        GROUP_CONCAT(DISTINCT d.detail_name ORDER BY mtd.display_order SEPARATOR ', ') AS sample_tasks,
+        GROUP_CONCAT(DISTINCT h.hazard_code ORDER BY mth.display_order SEPARATOR ', ') AS default_hazards
+      FROM code_work_type w
+      LEFT JOIN map_work_type_detail mtd ON mtd.work_type_code = w.work_type_code
+      LEFT JOIN code_detailed_work d ON d.detail_code = mtd.detail_code AND d.active_yn = 'Y'
+      LEFT JOIN map_work_type_hazard mth ON mth.work_type_code = w.work_type_code
+      LEFT JOIN code_hazard h ON h.hazard_code = mth.hazard_code AND h.active_yn = 'Y'
+      WHERE w.active_yn = 'Y'
+      GROUP BY w.work_type_code, w.work_type_name
+      ORDER BY w.work_type_code ASC
     `
   );
   for (const row of workTypeRows as Array<{
@@ -55,9 +65,15 @@ export const listRagSourceDocuments = async (): Promise<RagSourceDocument[]> => 
 
   const [ppeRows] = await dbPool.query(
     `
-      SELECT work_type_code, ppe_name, required_yn, reason
-      FROM code_ppe_rule
-      ORDER BY work_type_code ASC, ppe_name ASC
+      SELECT
+        m.work_type_code,
+        p.ppe_name,
+        m.required_yn,
+        m.reason
+      FROM map_work_type_ppe m
+      JOIN code_ppe_item p ON p.ppe_code = m.ppe_code AND p.active_yn = 'Y'
+      JOIN code_work_type w ON w.work_type_code = m.work_type_code AND w.active_yn = 'Y'
+      ORDER BY m.work_type_code ASC, p.ppe_name ASC
     `
   );
   for (const row of ppeRows as Array<{

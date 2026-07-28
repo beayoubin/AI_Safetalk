@@ -107,15 +107,21 @@ const ensureTbmHistoryTable = async (): Promise<void> => {
     CREATE TABLE IF NOT EXISTS tbm_generation_history (
       id BIGINT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
-      work_type VARCHAR(100) NOT NULL,
-      permit_type VARCHAR(100) NOT NULL,
+      permit_no VARCHAR(30) NULL,
+      work_type_code VARCHAR(20) NULL,
+      work_type_snapshot VARCHAR(100) NOT NULL,
+      permit_type_snapshot VARCHAR(100) NULL,
       risk_level VARCHAR(30) NOT NULL,
-      work_shift VARCHAR(30) NOT NULL,
+      shift_code VARCHAR(20) NULL,
+      work_shift_snapshot VARCHAR(30) NOT NULL,
       work_date DATE NOT NULL,
-      location VARCHAR(255) NOT NULL,
+      site_id BIGINT NULL,
+      location_snapshot VARCHAR(255) NOT NULL,
       options_json JSON NULL,
+      special_notes TEXT NULL,
       user_prompt TEXT NOT NULL,
       draft_text LONGTEXT NOT NULL,
+      checklist_json JSON NULL,
       signature_json JSON NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -140,29 +146,63 @@ const ensureTbmHistoryTable = async (): Promise<void> => {
   schemaReady = true;
 };
 
+const resolveWorkTypeCode = async (workType: string): Promise<string | null> => {
+  const [rows] = await dbPool.query(
+    `
+      SELECT work_type_code
+      FROM code_work_type
+      WHERE work_type_name = ? OR work_type_code = ?
+      LIMIT 1
+    `,
+    [workType, workType]
+  );
+  return (rows as Array<{ work_type_code: string }>)[0]?.work_type_code ?? null;
+};
+
+const resolveShiftCode = async (shift: string): Promise<string | null> => {
+  const [rows] = await dbPool.query(
+    `
+      SELECT shift_code
+      FROM code_work_shift
+      WHERE shift_name = ? OR shift_code = ?
+      LIMIT 1
+    `,
+    [shift, shift]
+  );
+  return (rows as Array<{ shift_code: string }>)[0]?.shift_code ?? null;
+};
+
 export const saveTbmHistory = async (input: TbmHistoryInput): Promise<number> => {
   await ensureTbmHistoryTable();
+  const [workTypeCode, shiftCode] = await Promise.all([
+    resolveWorkTypeCode(input.workType),
+    resolveShiftCode(input.shift)
+  ]);
 
   const [result] = await dbPool.query(
     `
       INSERT INTO tbm_generation_history (
         title,
-        work_type,
-        permit_type,
+        work_type_code,
+        work_type_snapshot,
+        permit_type_snapshot,
         risk_level,
-        work_shift,
+        shift_code,
+        work_shift_snapshot,
         work_date,
-        location,
+        location_snapshot,
         options_json,
         user_prompt,
         draft_text
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       input.title,
+      workTypeCode,
       input.workType,
       input.permitType,
       input.risk,
+      shiftCode,
       input.shift,
       input.workDate,
       input.location,
@@ -177,18 +217,24 @@ export const saveTbmHistory = async (input: TbmHistoryInput): Promise<number> =>
 
 export const updateTbmHistory = async (id: number, input: TbmHistoryInput): Promise<boolean> => {
   await ensureTbmHistoryTable();
+  const [workTypeCode, shiftCode] = await Promise.all([
+    resolveWorkTypeCode(input.workType),
+    resolveShiftCode(input.shift)
+  ]);
 
   const [result] = await dbPool.query(
     `
       UPDATE tbm_generation_history
       SET
         title = ?,
-        work_type = ?,
-        permit_type = ?,
+        work_type_code = ?,
+        work_type_snapshot = ?,
+        permit_type_snapshot = ?,
         risk_level = ?,
-        work_shift = ?,
+        shift_code = ?,
+        work_shift_snapshot = ?,
         work_date = ?,
-        location = ?,
+        location_snapshot = ?,
         options_json = ?,
         user_prompt = ?,
         draft_text = ?
@@ -197,9 +243,11 @@ export const updateTbmHistory = async (id: number, input: TbmHistoryInput): Prom
     `,
     [
       input.title,
+      workTypeCode,
       input.workType,
       input.permitType,
       input.risk,
+      shiftCode,
       input.shift,
       input.workDate,
       input.location,
@@ -292,7 +340,7 @@ export const listTbmHistoryPage = async (
   const conditions: string[] = [];
   const values: unknown[] = [];
   if (params.workType) {
-    conditions.push("work_type = ?");
+    conditions.push("work_type_snapshot = ?");
     values.push(params.workType);
   }
   if (params.risk) {
@@ -300,7 +348,7 @@ export const listTbmHistoryPage = async (
     values.push(params.risk);
   }
   if (params.search) {
-    conditions.push("(title LIKE ? OR location LIKE ?)");
+    conditions.push("(title LIKE ? OR location_snapshot LIKE ?)");
     values.push(`%${params.search}%`, `%${params.search}%`);
   }
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -321,11 +369,11 @@ export const listTbmHistoryPage = async (
       SELECT
         id,
         title,
-        work_type,
-        permit_type,
+        work_type_snapshot AS work_type,
+        permit_type_snapshot AS permit_type,
         risk_level,
         DATE_FORMAT(work_date, '%Y-%m-%d') AS work_date,
-        location,
+        location_snapshot AS location,
         signature_json,
         created_at
       FROM tbm_generation_history
@@ -347,12 +395,12 @@ export const getTbmHistoryDetail = async (id: number): Promise<TbmHistoryDetailR
       SELECT
         id,
         title,
-        work_type,
-        permit_type,
+        work_type_snapshot AS work_type,
+        permit_type_snapshot AS permit_type,
         risk_level,
-        work_shift,
+        work_shift_snapshot AS work_shift,
         DATE_FORMAT(work_date, '%Y-%m-%d') AS work_date,
-        location,
+        location_snapshot AS location,
         options_json,
         user_prompt,
         draft_text,
@@ -399,7 +447,7 @@ export const getTbmDashboardSummaryByDate = async (
         COUNT(*) AS generated_count
       FROM tbm_generation_history
       WHERE DATE(work_date) = DATE(?)
-        AND (? IS NULL OR location LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR location_snapshot LIKE CONCAT('%', ?, '%'))
     `,
     [date, keyword, keyword]
   );
@@ -424,7 +472,7 @@ export const listTbmRiskDistributionByDate = async (
       SELECT risk_level, COUNT(*) AS count
       FROM tbm_generation_history
       WHERE DATE(work_date) = DATE(?)
-        AND (? IS NULL OR location LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR location_snapshot LIKE CONCAT('%', ?, '%'))
       GROUP BY risk_level
       ORDER BY count DESC, risk_level ASC
     `,
@@ -450,7 +498,7 @@ export const listTbmDailyTrend = async (
       SELECT DATE_FORMAT(work_date, '%Y-%m-%d') AS work_date, COUNT(*) AS count
       FROM tbm_generation_history
       WHERE DATE(work_date) BETWEEN DATE_SUB(DATE(?), INTERVAL ? DAY) AND DATE(?)
-        AND (? IS NULL OR location LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR location_snapshot LIKE CONCAT('%', ?, '%'))
       GROUP BY DATE_FORMAT(work_date, '%Y-%m-%d')
       ORDER BY DATE_FORMAT(work_date, '%Y-%m-%d') ASC
     `,
@@ -476,15 +524,15 @@ export const listRecentTbmDashboardRows = async (
       SELECT
         id,
         title,
-        work_type,
-        permit_type,
+        work_type_snapshot AS work_type,
+        permit_type_snapshot AS permit_type,
         risk_level,
-        location,
+        location_snapshot AS location,
         DATE_FORMAT(work_date, '%Y-%m-%d') AS work_date,
         created_at
       FROM tbm_generation_history
       WHERE DATE(work_date) = DATE(?)
-        AND (? IS NULL OR location LIKE CONCAT('%', ?, '%'))
+        AND (? IS NULL OR location_snapshot LIKE CONCAT('%', ?, '%'))
       ORDER BY id DESC
       LIMIT ?
     `,
@@ -509,7 +557,7 @@ const buildWorkPermitWhereClause = (
     params.push(query.endDate);
   }
   if (query.workType && query.workType !== "all") {
-    conditions.push("work_type = ?");
+    conditions.push("work_type_snapshot = ?");
     params.push(query.workType);
   }
   if (query.risk && query.risk !== "all") {
@@ -526,7 +574,7 @@ const buildWorkPermitWhereClause = (
   const normalizedSearch = query.search?.trim();
   if (normalizedSearch) {
     conditions.push(
-      "(title LIKE CONCAT('%', ?, '%') OR location LIKE CONCAT('%', ?, '%') OR CAST(id AS CHAR) LIKE CONCAT('%', ?, '%'))"
+      "(title LIKE CONCAT('%', ?, '%') OR location_snapshot LIKE CONCAT('%', ?, '%') OR CAST(id AS CHAR) LIKE CONCAT('%', ?, '%'))"
     );
     params.push(normalizedSearch, normalizedSearch, normalizedSearch);
   }
@@ -564,16 +612,16 @@ export const listWorkPermits = async (query: WorkPermitQuery): Promise<WorkPermi
         id,
         CONCAT('PTW-', DATE_FORMAT(work_date, '%Y%m%d'), '-', LPAD(id, 4, '0')) AS permit_no,
         title AS work_name,
-        work_type,
-        location,
-        CONCAT(DATE_FORMAT(work_date, '%Y-%m-%d'), ' ', CASE WHEN work_shift = '야간' THEN '20:00' ELSE '08:00' END) AS period_start,
+        work_type_snapshot AS work_type,
+        location_snapshot AS location,
+        CONCAT(DATE_FORMAT(work_date, '%Y-%m-%d'), ' ', CASE WHEN work_shift_snapshot = '야간' THEN '20:00' ELSE '08:00' END) AS period_start,
         CONCAT(
           DATE_FORMAT(
-            DATE_ADD(work_date, INTERVAL CASE WHEN work_shift = '야간' THEN 1 ELSE 0 END DAY),
+            DATE_ADD(work_date, INTERVAL CASE WHEN work_shift_snapshot = '야간' THEN 1 ELSE 0 END DAY),
             '%Y-%m-%d'
           ),
           ' ',
-          CASE WHEN work_shift = '야간' THEN '05:00' ELSE '17:00' END
+          CASE WHEN work_shift_snapshot = '야간' THEN '05:00' ELSE '17:00' END
         ) AS period_end,
         UPPER(risk_level) AS risk,
         '승인' AS status,

@@ -6,6 +6,11 @@ import {
   listCodeWorkTypes,
   parsePermitTypes
 } from "../repositories/code-work-type.repository";
+import {
+  listCodeWorkShifts,
+  listTbmSurveyOptions,
+  listTbmSurveyQuestions
+} from "../repositories/tbm-survey-option.repository";
 
 export const getCodeWorkTypes = async (_req: Request, res: Response): Promise<void> => {
   try {
@@ -25,11 +30,22 @@ export const getCodeWorkTypes = async (_req: Request, res: Response): Promise<vo
 
 export const getCodeOptions = async (_req: Request, res: Response): Promise<void> => {
   try {
-    const [categoryRows, workTypeRows, riskLevels, approvalStatuses] = await Promise.all([
+    const [
+      categoryRows,
+      workTypeRows,
+      riskLevels,
+      approvalStatuses,
+      workShifts,
+      surveyQuestions,
+      surveyOptions
+    ] = await Promise.all([
       listCodeWorkCategories(),
       listCodeWorkTypes(),
       listCodeRiskLevels(),
-      listCodeApprovalStatuses()
+      listCodeApprovalStatuses(),
+      listCodeWorkShifts(),
+      listTbmSurveyQuestions(),
+      listTbmSurveyOptions()
     ]);
 
     const workTypes = workTypeRows.map((row) => ({
@@ -57,6 +73,21 @@ export const getCodeOptions = async (_req: Request, res: Response): Promise<void
       workCategories,
       workTypes,
       riskLevels: riskLevels.map((row) => row.risk_level),
+      workShifts: workShifts.map((row) => row.shift_name),
+      tbmSurvey: {
+        questions: surveyQuestions.map((row) => ({
+          key: row.question_key,
+          label: row.label,
+          outputLabel: row.output_label,
+          helperText: row.helper_text
+        })),
+        options: surveyOptions.map((row) => ({
+          questionKey: row.question_key,
+          driverType: row.driver_type,
+          driverValue: row.driver_value,
+          label: row.option_label
+        }))
+      },
       permitTypes,
       approvalStatuses: approvalStatuses.map((row) => row.approval_status)
     });

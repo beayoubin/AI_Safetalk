@@ -147,12 +147,28 @@ type WorkTypeRow = {
 const fetchWorkTypeRow = async (workType: string): Promise<WorkTypeRow | null> => {
   const [rows] = await dbPool.query(
     `
-      SELECT work_type_code, sample_tasks, default_hazards, category_code
-      FROM code_work_type
-      WHERE work_type = ?
+      SELECT
+        w.work_type_code,
+        GROUP_CONCAT(DISTINCT d.detail_name ORDER BY mtd.display_order SEPARATOR ', ') AS sample_tasks,
+        GROUP_CONCAT(DISTINCT h.hazard_code ORDER BY mth.display_order SEPARATOR ',') AS default_hazards,
+        w.category_code
+      FROM code_work_type w
+      LEFT JOIN map_work_type_detail mtd
+        ON mtd.work_type_code = w.work_type_code
+      LEFT JOIN code_detailed_work d
+        ON d.detail_code = mtd.detail_code
+       AND d.active_yn = 'Y'
+      LEFT JOIN map_work_type_hazard mth
+        ON mth.work_type_code = w.work_type_code
+      LEFT JOIN code_hazard h
+        ON h.hazard_code = mth.hazard_code
+       AND h.active_yn = 'Y'
+      WHERE w.active_yn = 'Y'
+        AND (w.work_type_name = ? OR w.work_type_code = ?)
+      GROUP BY w.work_type_code, w.category_code
       LIMIT 1
     `,
-    [workType]
+    [workType, workType]
   );
   return (rows as WorkTypeRow[])[0] ?? null;
 };

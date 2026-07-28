@@ -496,6 +496,7 @@ export const generateTbm = async (req: Request, res: Response): Promise<void> =>
       title: generated.title
     });
   } catch (error) {
+    console.error("[TBM_GENERATE] failed:", (error as Error).message);
     res.status(500).json({ ok: false, message: (error as Error).message });
   }
 };

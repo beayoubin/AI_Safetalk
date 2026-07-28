@@ -34,9 +34,17 @@ const qdrantRequest = async (path: string, method: string, body?: unknown): Prom
   });
 };
 
-const recreateCollection = async (vectorSize: number): Promise<void> => {
-  await qdrantRequest(`/collections/${env.vectorDb.collection}`, "DELETE");
-  const response = await qdrantRequest(`/collections/${env.vectorDb.collection}`, "PUT", {
+let qdrantCollectionReady = false;
+let ragAutoSyncStarted = false;
+
+const collectionPath = (): string => `/collections/${env.vectorDb.collection}`;
+
+const getCollectionResponse = async (): Promise<Response> => {
+  return qdrantRequest(collectionPath(), "GET");
+};
+
+const createCollection = async (vectorSize: number): Promise<void> => {
+  const response = await qdrantRequest(collectionPath(), "PUT", {
     vectors: {
       size: vectorSize,
       distance: "Cosine"
@@ -46,6 +54,44 @@ const recreateCollection = async (vectorSize: number): Promise<void> => {
     const errorText = await response.text();
     throw new Error(`Qdrant collection setup failed (${response.status}): ${errorText}`);
   }
+  qdrantCollectionReady = true;
+};
+
+const ensureCollectionExists = async (vectorSize: number): Promise<void> => {
+  if (qdrantCollectionReady) {
+    return;
+  }
+
+  const response = await getCollectionResponse();
+  if (response.ok) {
+    qdrantCollectionReady = true;
+    return;
+  }
+
+  if (response.status === 404) {
+    await createCollection(vectorSize);
+    return;
+  }
+
+  const errorText = await response.text();
+  throw new Error(`Qdrant collection check failed (${response.status}): ${errorText}`);
+};
+
+const recreateCollection = async (vectorSize: number): Promise<void> => {
+  const current = await getCollectionResponse();
+  if (current.ok) {
+    const deleteResponse = await qdrantRequest(collectionPath(), "DELETE");
+    if (!deleteResponse.ok) {
+      const errorText = await deleteResponse.text();
+      throw new Error(`Qdrant collection delete failed (${deleteResponse.status}): ${errorText}`);
+    }
+  } else if (current.status !== 404) {
+    const errorText = await current.text();
+    throw new Error(`Qdrant collection check failed (${current.status}): ${errorText}`);
+  }
+
+  qdrantCollectionReady = false;
+  await createCollection(vectorSize);
 };
 
 export const syncRagKnowledgeBase = async (): Promise<{ count: number }> => {
@@ -89,6 +135,23 @@ export const syncRagKnowledgeBase = async (): Promise<{ count: number }> => {
   return { count: points.length };
 };
 
+export const startRagAutoSync = (): void => {
+  if (!isRagEnabled() || ragAutoSyncStarted) {
+    return;
+  }
+
+  ragAutoSyncStarted = true;
+  setTimeout(() => {
+    void syncRagKnowledgeBase()
+      .then((result) => {
+        console.log(`[RAG_SYNC] completed: ${result.count} documents indexed`);
+      })
+      .catch((error: unknown) => {
+        console.error("[RAG_SYNC] failed:", (error as Error).message);
+      });
+  }, 5000);
+};
+
 const searchRag = async (
   query: string,
   limit: number
@@ -99,6 +162,12 @@ const searchRag = async (
 
   const [embedding] = await createEmbeddings([query]);
   if (!embedding || embedding.length === 0) {
+    return [];
+  }
+
+  try {
+    await ensureCollectionExists(embedding.length);
+  } catch {
     return [];
   }
 
