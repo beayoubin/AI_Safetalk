@@ -26,16 +26,41 @@ type TbmDashboardRow = {
   workName: string;
   workType: string;
   location: string;
-  risk: "HIGH" | "MEDIUM" | "LOW";
+  risk: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 };
 
 const riskChipStyle: Record<
   TbmDashboardRow["risk"],
   { color: string; borderColor: string; bgcolor: string }
 > = {
+  CRITICAL: { color: "#991b1b", borderColor: "#fca5a5", bgcolor: "#fee2e2" },
   HIGH: { color: "#dc2626", borderColor: "#fecaca", bgcolor: "#fef2f2" },
   MEDIUM: { color: "#d97706", borderColor: "#fde68a", bgcolor: "#fffbeb" },
   LOW: { color: "#16a34a", borderColor: "#bbf7d0", bgcolor: "#f0fdf4" }
+};
+
+const normalizeRiskLevel = (
+  value: string
+): "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" => {
+  const normalized = value.trim().toUpperCase();
+
+  if (normalized === "CRITICAL" || normalized === "최상") {
+    return "CRITICAL";
+  }
+
+  if (normalized === "HIGH" || normalized === "상") {
+    return "HIGH";
+  }
+
+  if (normalized === "MEDIUM" || normalized === "중") {
+    return "MEDIUM";
+  }
+
+  if (normalized === "LOW" || normalized === "하") {
+    return "LOW";
+  }
+
+  return "MEDIUM";
 };
 
 const panelBorder = "#bfdbfe";
@@ -82,14 +107,14 @@ type DashboardResponse = {
     totalPermits: number;
     highRisk: number;
   };
-  riskDistribution?: { HIGH: number; MEDIUM: number; LOW: number };
+  riskDistribution?: { CRITICAL: number; HIGH: number; MEDIUM: number; LOW: number };
   trend?: Array<{ date: string; count: number; cumulative: number }>;
   recentPermits?: Array<{
     permitNo: string;
     workName: string;
     workType: string;
     location: string;
-    risk: "HIGH" | "MEDIUM" | "LOW";
+    risk: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
     status: string;
     createdAt: string;
   }>;
@@ -102,6 +127,25 @@ type DashboardResponse = {
     warningType: string | null;
     skyStatus: string | null;
   } | null;
+  message?: string;
+};
+
+type TbmHistoryRow = {
+  id: number;
+  title: string;
+  workType: string;
+  permitType: string;
+  risk: string;
+  workDate: string;
+  location: string;
+  signed?: boolean;
+  createdAt: string;
+};
+
+type TbmHistoryListResponse = {
+  ok?: boolean;
+  rows?: TbmHistoryRow[];
+  totalCount?: number;
   message?: string;
 };
 
@@ -221,7 +265,7 @@ function PanelHeader({ title, action }: { title: string; action?: ReactNode }) {
 function DonutChartPanel({
   distribution
 }: {
-  distribution: Array<{ label: "HIGH" | "MEDIUM" | "LOW"; count: number; color: string }>;
+  distribution: Array<{ label: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW"; count: number; color: string }>;
 }) {
   const rawTotal = distribution.reduce((sum, item) => sum + item.count, 0);
   const total = Math.max(rawTotal, 1);
@@ -335,11 +379,11 @@ function LineChartPanel({
     : "";
   const dateLabels = hasTrend
     ? trend.map((row) => {
-        const date = new Date(row.date);
-        return Number.isNaN(date.getTime())
-          ? row.date
-          : `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
-      })
+      const date = new Date(row.date);
+      return Number.isNaN(date.getTime())
+        ? row.date
+        : `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+    })
     : [];
 
   return (
@@ -512,13 +556,35 @@ function DashboardPage() {
     []
   );
   const [weather, setWeather] = useState<DashboardResponse["weather"]>(null);
-  const [riskCounts, setRiskCounts] = useState({ HIGH: 0, MEDIUM: 0, LOW: 0 });
+  const [riskCounts, setRiskCounts] = useState({
+    CRITICAL: 0,
+    HIGH: 0,
+    MEDIUM: 0,
+    LOW: 0
+  });
 
   const riskDistribution = useMemo(
     () => [
-      { label: "HIGH" as const, count: riskCounts.HIGH, color: "#ef4444" },
-      { label: "MEDIUM" as const, count: riskCounts.MEDIUM, color: "#fbbf24" },
-      { label: "LOW" as const, count: riskCounts.LOW, color: "#22c55e" }
+      {
+        label: "CRITICAL" as const,
+        count: riskCounts.CRITICAL,
+        color: "#991b1b"
+      },
+      {
+        label: "HIGH" as const,
+        count: riskCounts.HIGH,
+        color: "#ef4444"
+      },
+      {
+        label: "MEDIUM" as const,
+        count: riskCounts.MEDIUM,
+        color: "#fbbf24"
+      },
+      {
+        label: "LOW" as const,
+        count: riskCounts.LOW,
+        color: "#22c55e"
+      }
     ],
     [riskCounts]
   );
@@ -533,34 +599,101 @@ function DashboardPage() {
         if (selectedPlant.trim()) {
           params.set("siteName", selectedPlant.trim());
         }
-        const response = await apiFetch(`/dashboard/summary?${params.toString()}`);
-        const result = (await response.json()) as DashboardResponse;
-        if (!response.ok || !result.ok) {
-          throw new Error(result.message ?? "대시보드 데이터를 불러오지 못했습니다.");
+        const historyParams = new URLSearchParams({
+          page: "0",
+          pageSize: "100"
+        });
+
+        if (selectedPlant.trim()) {
+          historyParams.set("search", selectedPlant.trim());
         }
+
+        const [dashboardResponse, historyResponse] = await Promise.all([
+          apiFetch(`/dashboard/summary?${params.toString()}`),
+          apiFetch(`/tbm/history-list?${historyParams.toString()}`)
+        ]);
+
+        const dashboardResult =
+          (await dashboardResponse.json().catch(() => ({}))) as DashboardResponse;
+
+        const historyResult =
+          (await historyResponse.json().catch(() => ({}))) as TbmHistoryListResponse;
+
+        if (!dashboardResponse.ok || !dashboardResult.ok) {
+          throw new Error(
+            dashboardResult.message ?? "대시보드 데이터를 불러오지 못했습니다."
+          );
+        }
+
+        if (!historyResponse.ok || !historyResult.ok) {
+          throw new Error(
+            historyResult.message ?? "TBM 이력을 불러오지 못했습니다."
+          );
+        }
+
         if (cancelled) return;
-        setSiteOptions(result.siteOptions ?? []);
-        if (!selectedPlant && result.siteOptions && result.siteOptions.length > 0) {
-          setSelectedPlant(result.siteOptions[0].siteName);
+
+        setSiteOptions(dashboardResult.siteOptions ?? []);
+
+        if (
+          !selectedPlant &&
+          dashboardResult.siteOptions &&
+          dashboardResult.siteOptions.length > 0
+        ) {
+          setSelectedPlant(dashboardResult.siteOptions[0].siteName);
         }
-        setKpi(
-          result.kpi ?? {
-            totalPermits: 0,
-            highRisk: 0
+
+        const historyRows = (historyResult.rows ?? []).filter(
+          (row) =>
+            row.workDate === selectedDate &&
+            (!selectedPlant.trim() || row.location === selectedPlant.trim())
+        );
+
+        const historyMap = new Map(
+          historyRows.map((row) => [
+            row.title,
+            normalizeRiskLevel(row.risk)
+          ])
+        );
+
+        const correctedRows: TbmDashboardRow[] =
+          (dashboardResult.recentPermits ?? []).map((row) => {
+            const historyRisk = historyMap.get(row.workName);
+
+            return {
+              tbmNo: row.permitNo,
+              workName: row.workName,
+              workType: row.workType,
+              location: row.location,
+              risk: historyRisk ?? normalizeRiskLevel(row.risk)
+            };
+          });
+
+        const correctedRiskCounts = correctedRows.reduce(
+          (counts, row) => {
+            counts[row.risk] += 1;
+            return counts;
+          },
+          {
+            CRITICAL: 0,
+            HIGH: 0,
+            MEDIUM: 0,
+            LOW: 0
           }
         );
-        setRiskCounts(result.riskDistribution ?? { HIGH: 0, MEDIUM: 0, LOW: 0 });
-        setTrend(result.trend ?? []);
-        setTbmRows(
-          (result.recentPermits ?? []).map((row) => ({
-            tbmNo: row.permitNo,
-            workName: row.workName,
-            workType: row.workType,
-            location: row.location,
-            risk: row.risk
-          }))
-        );
-        setWeather(result.weather ?? null);
+
+        const highRiskCount =
+          correctedRiskCounts.CRITICAL + correctedRiskCounts.HIGH;
+
+        setKpi({
+          totalPermits: correctedRows.length,
+          highRisk: highRiskCount
+        });
+
+        setRiskCounts(correctedRiskCounts);
+        setTrend(dashboardResult.trend ?? []);
+        setTbmRows(correctedRows);
+        setWeather(dashboardResult.weather ?? null);
       } catch (error) {
         if (!cancelled) {
           setErrorMessage((error as Error).message);
@@ -604,12 +737,14 @@ function DashboardPage() {
         <Typography variant="h2" sx={{ fontSize: 20, m: 0, color: panelText }}>
           대시보드
         </Typography>
-        <Box sx={{ display: "flex", 
-                   gap: 1, 
-                   flexWrap: "wrap",
-                   width: { xs: "100%", sm: "auto" },
-                   flexDirection: { xs: "column", sm: "row" } }}>
-          <FormControl size="small" sx={{ minWidth: {xs: 0, sm: 140 }, width: { xs: "100%", sm: "auto"} }}>
+        <Box sx={{
+          display: "flex",
+          gap: 1,
+          flexWrap: "wrap",
+          width: { xs: "100%", sm: "auto" },
+          flexDirection: { xs: "column", sm: "row" }
+        }}>
+          <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 140 }, width: { xs: "100%", sm: "auto" } }}>
             <Select
               value={selectedPlant}
               onChange={(event) => setSelectedPlant(event.target.value)}
@@ -718,9 +853,9 @@ function DashboardPage() {
                 overflowX: "auto"
               }}
             >
-              <Table 
+              <Table
                 size="small"
-                sx = {{
+                sx={{
                   minWidth: { xs: 620, md: "100%" }
                 }}>
                 <TableHead>

@@ -1342,8 +1342,8 @@ function TbmGeneratePage() {
     content: isPreviewProducing
       ? PRODUCTION_PLACEHOLDER
       : cleanPreviewContent(minutesSectionMap[label] || "") ||
-        draftBlocks[SCRIPT_TEMPLATE.length + MINUTES_SECTION_LABELS.indexOf(label)] ||
-        ""
+      draftBlocks[SCRIPT_TEMPLATE.length + MINUTES_SECTION_LABELS.indexOf(label)] ||
+      ""
   }));
 
   const additionalOptionLines = [
@@ -1871,7 +1871,25 @@ function TbmGeneratePage() {
 
   const renderSignaturePad = (kind: SignatureKind, label: string) => (
     <Box
-      sx={{ p: 0.9, borderRight: kind === "worker" ? `1px solid ${previewSurfaceBorder}` : "none" }}
+      sx={{
+        p: 0.9,
+
+        borderRight: {
+          xs: "none",
+          sm:
+            kind === "worker"
+              ? `1px solid ${previewSurfaceBorder}`
+              : "none"
+        },
+
+        borderBottom: {
+          xs:
+            kind === "worker"
+              ? `1px solid ${previewSurfaceBorder}`
+              : "none",
+          sm: "none"
+        }
+      }}
     >
       <Box
         sx={{
@@ -2280,10 +2298,23 @@ function TbmGeneratePage() {
                   >
                     TBM 실행 시나리오
                   </Typography>
-                  <Box sx={{ border: `1px solid ${previewScriptBorder}`, mb: 2.5 }}>
+
+                  <Box
+                    sx={{
+                      border: `1px solid ${previewScriptBorder}`,
+                      mb: 2.5,
+                      width: "100%",
+                      minWidth: 0,
+                      boxSizing: "border-box"
+                    }}
+                  >
+                    {/* 태블릿·웹에서만 기존 표 헤더 표시 */}
                     <Box
                       sx={{
-                        display: "grid",
+                        display: {
+                          xs: "none",
+                          sm: "grid"
+                        },
                         gridTemplateColumns: "190px 1fr",
                         borderBottom: `1px solid ${previewScriptBorder}`,
                         bgcolor: previewScriptHeaderBg
@@ -2301,6 +2332,7 @@ function TbmGeneratePage() {
                       >
                         구분
                       </Box>
+
                       <Box
                         sx={{
                           p: 0.8,
@@ -2319,41 +2351,86 @@ function TbmGeneratePage() {
                         key={section.title}
                         sx={{
                           display: "grid",
-                          gridTemplateColumns: "190px 1fr",
+
+                          // 모바일만 1열
+                          // 태블릿·웹은 기존 190px + 나머지 영역 유지
+                          gridTemplateColumns: {
+                            xs: "minmax(0, 1fr)",
+                            sm: "190px minmax(0, 1fr)"
+                          },
+
                           borderBottom:
                             index === scriptSections.length - 1
                               ? "none"
-                              : `1px solid ${previewScriptBorder}`
+                              : `1px solid ${previewScriptBorder}`,
+
+                          minWidth: 0,
+                          width: "100%"
                         }}
                       >
+                        {/* 구분 제목 영역 */}
                         <Box
                           sx={{
-                            p: 0.8,
+                            p: {
+                              xs: 1,
+                              sm: 0.8
+                            },
+
                             fontSize: 12.5,
                             fontWeight: 700,
-                            borderRight: `1px solid ${previewScriptBorder}`,
+
+                            // 모바일은 제목이 위에 위치하므로 오른쪽 선 제거
+                            borderRight: {
+                              xs: "none",
+                              sm: `1px solid ${previewScriptBorder}`
+                            },
+
+                            // 모바일에서 제목과 멘트 사이 구분선
+                            borderBottom: {
+                              xs: `1px solid ${previewScriptBorder}`,
+                              sm: "none"
+                            },
+
                             textAlign: "center",
                             bgcolor: previewScriptHeaderBg,
                             color: panelText,
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "center",
-                            gap: 0.25
+                            gap: 0.25,
+                            minWidth: 0
                           }}
                         >
                           <span>{section.title}</span>
+
                           {section.subtitle ? (
-                            <span style={{ fontWeight: 500 }}>{section.subtitle}</span>
+                            <span style={{ fontWeight: 500 }}>
+                              {section.subtitle}
+                            </span>
                           ) : null}
                         </Box>
+
+                        {/* 체크박스 및 멘트 영역 */}
                         <Box
                           sx={{
-                            px: 0.65,
-                            py: 0.45,
+                            px: {
+                              xs: 0.5,
+                              sm: 0.65
+                            },
+                            py: {
+                              xs: 0.75,
+                              sm: 0.45
+                            },
+
                             display: "flex",
                             flexDirection: "column",
                             gap: 0.2,
-                            bgcolor: inputBg
+                            bgcolor: inputBg,
+
+                            minWidth: 0,
+                            width: "100%",
+                            maxWidth: "100%",
+                            boxSizing: "border-box"
                           }}
                         >
                           {(isPreviewProducing
@@ -2363,17 +2440,28 @@ function TbmGeneratePage() {
                             .split("\n")
                             .map((line, lineIndex) => {
                               const sentenceKey = `${section.title}:${lineIndex}`;
-                              const checked = Boolean(scriptSentenceChecks[sentenceKey]);
+                              const checked = Boolean(
+                                scriptSentenceChecks[sentenceKey]
+                              );
+
                               return (
                                 <Box
                                   key={sentenceKey}
                                   sx={{
                                     display: "grid",
-                                    gridTemplateColumns: "28px 1fr",
+                                    gridTemplateColumns: "28px minmax(0, 1fr)",
                                     alignItems: "flex-start",
                                     gap: 0.25,
+
+                                    minWidth: 0,
+                                    width: "100%",
+                                    maxWidth: "100%",
+                                    boxSizing: "border-box",
+
                                     borderRadius: 1,
-                                    bgcolor: checked ? "#eef6ff" : "transparent",
+                                    bgcolor: checked
+                                      ? "#eef6ff"
+                                      : "transparent",
                                     transition: "background-color 0.16s ease"
                                   }}
                                 >
@@ -2386,15 +2474,23 @@ function TbmGeneratePage() {
                                       }))
                                     }
                                     size="small"
-                                    disabled={isPreviewProducing || line.trim().length === 0}
+                                    disabled={
+                                      isPreviewProducing ||
+                                      line.trim().length === 0
+                                    }
                                     sx={{
                                       mt: 0.05,
                                       p: 0.25,
                                       color: "#7aa7d8",
-                                      "& .MuiSvgIcon-root": { fontSize: 20 },
-                                      "&.Mui-checked": { color: accentBlue }
+                                      "& .MuiSvgIcon-root": {
+                                        fontSize: 20
+                                      },
+                                      "&.Mui-checked": {
+                                        color: accentBlue
+                                      }
                                     }}
                                   />
+
                                   <TextField
                                     multiline
                                     minRows={1}
@@ -2410,30 +2506,44 @@ function TbmGeneratePage() {
                                     disabled={isPreviewProducing}
                                     sx={{
                                       ...darkInputSx,
+
+                                      width: "100%",
+                                      minWidth: 0,
+                                      maxWidth: "100%",
+
                                       "& .MuiInputBase-root": {
                                         bgcolor: "transparent",
                                         borderRadius: 1,
                                         fontSize: 13,
-                                        color: checked ? accentBlue : panelText,
+                                        color: checked
+                                          ? accentBlue
+                                          : panelText,
                                         lineHeight: 1.38,
                                         fontWeight: checked ? 700 : 500,
-                                        p: 0
+                                        p: 0,
+                                        minWidth: 0,
+                                        width: "100%"
                                       },
+
                                       "& .MuiInputBase-input": {
                                         py: 0.15,
-                                        px: 0
+                                        px: 0,
+                                        minWidth: 0
                                       },
+
                                       "& .MuiOutlinedInput-notchedOutline": {
                                         borderColor: "transparent"
                                       },
+
                                       "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline":
-                                        {
-                                          borderColor: "#bfdbfe"
-                                        },
+                                      {
+                                        borderColor: "#bfdbfe"
+                                      },
+
                                       "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
-                                        {
-                                          borderColor: accentBlue
-                                        }
+                                      {
+                                        borderColor: accentBlue
+                                      }
                                     }}
                                   />
                                 </Box>
@@ -2451,16 +2561,68 @@ function TbmGeneratePage() {
                         bgcolor: previewScriptHeaderBg,
                         borderBottom: `1px solid ${previewSurfaceBorder}`,
                         color: panelText,
+
                         display: "flex",
-                        alignItems: "center",
+                        flexDirection: {
+                          xs: "column",
+                          sm: "row"
+                        },
+
+                        alignItems: {
+                          xs: "stretch",
+                          sm: "center"
+                        },
+
                         justifyContent: "space-between",
-                        gap: 1
+                        gap: {
+                          xs: 0.75,
+                          sm: 1
+                        }
                       }}
                     >
-                      <Box sx={{ flex: 1 }} />
-                      <Box sx={{ flex: 2, textAlign: "center" }}>
-                        <Typography component="span" sx={{ fontSize: 14, fontWeight: 800 }}>
-                          체크리스트/서명(PPE/LOTO)
+                      <Box
+                        sx={{
+                          flex: 1,
+                          display: {
+                            xs: "none",
+                            sm: "block"
+                          }
+                        }}
+                      />
+                      <Box
+                        sx={{
+                          flex: 2,
+                          textAlign: "center",
+                          width: {
+                            xs: "100%",
+                            sm: "auto"
+                          }
+                        }}
+                      >
+                        <Typography
+                          component="div"
+                          sx={{
+                            fontSize: 14,
+                            fontWeight: 800,
+                            lineHeight: 1.45
+                          }}
+                        >
+                          체크리스트/서명
+                          <Box
+                            component="span"
+                            sx={{
+                              display: {
+                                xs: "block",
+                                sm: "inline"
+                              },
+                              ml: {
+                                xs: 0,
+                                sm: 0.4
+                              }
+                            }}
+                          >
+                            (PPE/LOTO)
+                          </Box>
                         </Typography>
                         {signatureSaveMessage ? (
                           <Typography
@@ -2471,16 +2633,36 @@ function TbmGeneratePage() {
                           </Typography>
                         ) : null}
                       </Box>
-                      <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>
+                      <Box
+                        sx={{
+                          flex: 1,
+                          display: "flex",
+                          justifyContent: {
+                            xs: "stretch",
+                            sm: "flex-end"
+                          },
+                          width: {
+                            xs: "100%",
+                            sm: "auto"
+                          }
+                        }}
+                      >
                         <Button
                           size="small"
                           variant="outlined"
                           onClick={handleManualSignatureSave}
                           disabled={isPreviewProducing || isSavingSignature || !currentHistoryId}
                           sx={{
+                            width: {
+                              xs: "100%",
+                              sm: "auto"
+                            },
                             minWidth: 76,
                             px: 1,
-                            py: 0.25,
+                            py: {
+                              xs: 0.65,
+                              sm: 0.25
+                            },
                             fontSize: 11,
                             color: panelText,
                             borderColor: inputBorder,
@@ -2496,7 +2678,10 @@ function TbmGeneratePage() {
                     <Box
                       sx={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(3, minmax(0, 1fr))"
+                        },
                         borderBottom: `1px solid ${previewSurfaceBorder}`
                       }}
                     >
@@ -2505,13 +2690,27 @@ function TbmGeneratePage() {
                           key={item}
                           sx={{
                             p: 0.75,
-                            borderRight:
-                              index === SIGNATURE_CHECKLIST_ITEMS.length - 1
-                                ? "none"
-                                : `1px solid ${previewSurfaceBorder}`,
+                            borderRight: {
+                              xs: "none",
+                              sm:
+                                index === SIGNATURE_CHECKLIST_ITEMS.length - 1
+                                  ? "none"
+                                  : `1px solid ${previewSurfaceBorder}`
+                            },
+
+                            borderBottom: {
+                              xs:
+                                index === SIGNATURE_CHECKLIST_ITEMS.length - 1
+                                  ? "none"
+                                  : `1px solid ${previewSurfaceBorder}`,
+                              sm: "none"
+                            },
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "center"
+                            justifyContent: {
+                              xs: "flex-start",
+                              sm: "center"
+                            }
                           }}
                         >
                           <FormControlLabel
@@ -2540,7 +2739,15 @@ function TbmGeneratePage() {
                         </Box>
                       ))}
                     </Box>
-                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "1fr 1fr"
+                        }
+                      }}
+                    >
                       {renderSignaturePad("worker", "작업자 서명")}
                       {renderSignaturePad("supervisor", "감독자 서명")}
                     </Box>
