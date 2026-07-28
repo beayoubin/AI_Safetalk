@@ -46,6 +46,18 @@ type FollowUpQuestion = {
   options: string[];
 };
 
+const MULTI_SELECT_QUESTION_KEYS = new Set<FollowUpQuestion["key"]>(["equipment", "requiredPpe"]);
+const MULTI_SELECT_SEPARATOR = ", ";
+
+const isMultiSelectQuestion = (key: FollowUpQuestion["key"]): boolean =>
+  MULTI_SELECT_QUESTION_KEYS.has(key);
+
+const parseMultiSelectValue = (value: string): string[] =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
 type WorkTypeOption = {
   code: string;
   name: string;
@@ -77,7 +89,7 @@ type TbmSurveyQuestionConfig = {
 
 type TbmSurveyOptionConfig = {
   questionKey: keyof Omit<AdditionalTbmInputs, "specialNotes">;
-  driverType: "default" | "category" | "risk" | "shift";
+  driverType: "default" | "category" | "workType" | "risk" | "shift";
   driverValue: string;
   label: string;
 };
@@ -379,39 +391,54 @@ const fillSurveyHelperText = (template: string, preset: TbmPreset): string =>
     .replace(/\{risk\}/g, preset.risk || "위험등급")
     .replace(/\{shift\}/g, preset.shift || "작업시간");
 
-const pickSurveyDriverValue = (
+const pickSurveyDriverCandidates = (
   questionKey: FollowUpQuestion["key"],
   preset: TbmPreset,
-  categoryCode: string
-): { driverType: TbmSurveyOptionConfig["driverType"]; driverValue: string } => {
+  categoryCode: string,
+  workTypeCode: string
+): Array<{ driverType: TbmSurveyOptionConfig["driverType"]; driverValue: string }> => {
+  const workTypeDriver = workTypeCode
+    ? [{ driverType: "workType" as const, driverValue: workTypeCode }]
+    : [];
+
   if (["equipment", "requiredPpe", "detailedWork", "siteHazards"].includes(questionKey)) {
-    return { driverType: "category", driverValue: categoryCode };
+    return [...workTypeDriver, { driverType: "category", driverValue: categoryCode }];
   }
   if (questionKey === "safetyMeasures") {
-    return { driverType: "risk", driverValue: normalizeRiskKey(preset.risk) };
+    return [...workTypeDriver, { driverType: "risk", driverValue: normalizeRiskKey(preset.risk) }];
   }
   if (questionKey === "emergencyNotes") {
-    return { driverType: "shift", driverValue: preset.shift };
+    return [{ driverType: "shift", driverValue: preset.shift }];
   }
-  return { driverType: "default", driverValue: "default" };
+  return [{ driverType: "default", driverValue: "default" }];
 };
 
 const buildFollowUpQuestions = (
   preset: TbmPreset,
   categoryCode: string,
+  workTypeCode: string,
   surveyConfig: TbmSurveyConfig | null
 ): FollowUpQuestion[] =>
   (surveyConfig?.questions ?? []).map((question) => {
-    const driver = pickSurveyDriverValue(question.key, preset, categoryCode);
+    const driverCandidates = pickSurveyDriverCandidates(
+      question.key,
+      preset,
+      categoryCode,
+      workTypeCode
+    );
     const options =
-      surveyConfig?.options
-        .filter(
-          (option) =>
-            option.questionKey === question.key &&
-            option.driverType === driver.driverType &&
-            option.driverValue === driver.driverValue
+      driverCandidates
+        .map((driver) =>
+          (surveyConfig?.options ?? [])
+            .filter(
+              (option) =>
+                option.questionKey === question.key &&
+                option.driverType === driver.driverType &&
+                option.driverValue === driver.driverValue
+            )
+            .map((option) => option.label)
         )
-        .map((option) => option.label) ?? [];
+        .find((items) => items.length > 0) ?? [];
 
     return {
       key: question.key,
@@ -977,10 +1004,17 @@ type SelectionChipRowProps = {
   options: string[];
   value: string;
   onChange: (value: string) => void;
+  multiple?: boolean;
   emptyMessage?: string;
 };
 
-function SelectionChipRow({ options, value, onChange, emptyMessage }: SelectionChipRowProps) {
+function SelectionChipRow({
+  options,
+  value,
+  onChange,
+  multiple = false,
+  emptyMessage
+}: SelectionChipRowProps) {
   if (options.length === 0) {
     return (
       <Typography sx={{ fontSize: 12, color: mutedText }}>
@@ -1000,14 +1034,26 @@ function SelectionChipRow({ options, value, onChange, emptyMessage }: SelectionC
       }}
     >
       {options.map((item, index) => {
-        const checked = value === item;
+        const selectedValues = multiple ? parseMultiSelectValue(value) : [];
+        const checked = multiple ? selectedValues.includes(item) : value === item;
         const palette = selectionPalettes[index % selectionPalettes.length];
+        const nextValue = () => {
+          if (!multiple) {
+            return checked ? "" : item;
+          }
+
+          const nextValues = checked
+            ? selectedValues.filter((selected) => selected !== item)
+            : [...selectedValues, item];
+          return nextValues.join(MULTI_SELECT_SEPARATOR);
+        };
+
         return (
           <Button
             key={item}
             type="button"
             aria-pressed={checked}
-            onClick={() => onChange(checked ? "" : item)}
+            onClick={() => onChange(nextValue())}
             disableRipple
             sx={{
               m: 0,
@@ -1214,9 +1260,12 @@ function TbmGeneratePage() {
     preset.location.trim() !== "";
 
   const workTypeOptions = workCategoryOptions.flatMap((category) => category.workTypes);
+  const selectedWorkTypeCode =
+    workTypeOptions.find((workType) => workType.name === preset.workType)?.code ?? "";
   const followUpQuestions = buildFollowUpQuestions(
     preset,
     selectedWorkCategoryCode,
+    selectedWorkTypeCode,
     tbmSurveyConfig
   );
   const followUpReady =
@@ -1901,10 +1950,14 @@ function TbmGeneratePage() {
   const renderFollowUpQuestionCard = (index: number, question: FollowUpQuestion) => (
     <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
       <SurveyFieldHeader index={index} label={question.label} />
-      <Typography sx={{ fontSize: 12, color: mutedText, mb: 0.8 }}>{question.helperText}</Typography>
+      <Typography sx={{ fontSize: 12, color: mutedText, mb: 0.8 }}>
+        {question.helperText}
+        {isMultiSelectQuestion(question.key) ? " 여러 개 선택할 수 있습니다." : ""}
+      </Typography>
       <SelectionChipRow
         options={question.options}
         value={additionalInputs[question.key]}
+        multiple={isMultiSelectQuestion(question.key)}
         onChange={(value) =>
           setAdditionalInputs((prev) => ({
             ...prev,
@@ -1941,6 +1994,9 @@ function TbmGeneratePage() {
       />
     </Paper>
   );
+
+  const specialNotesIndex = 6 + followUpQuestions.length;
+  const generateButtonIndex = specialNotesIndex + 1;
 
   return (
     <Box
@@ -2132,9 +2188,9 @@ function TbmGeneratePage() {
               {followUpQuestions.map((question, index) =>
                 renderFollowUpQuestionCard(index + 6, question)
               )}
-              {renderSpecialNotesCard(14)}
+              {renderSpecialNotesCard(specialNotesIndex)}
 
-              <Paper elevation={0} sx={getSurveyFieldPaperSx(15)}>
+              <Paper elevation={0} sx={getSurveyFieldPaperSx(generateButtonIndex)}>
                 <Button
                   fullWidth
                   variant="contained"
