@@ -46,6 +46,7 @@ const accentBlue = "#2563eb";
 const accentBlueHover = "#1d4ed8";
 const errorColor = "#dc2626";
 const darkNavyText = "#ffffff";
+const sectionHeaderBg = "#BFDBFE";
 
 type WorkTypeOption = {
   code: string;
@@ -1774,7 +1775,7 @@ function TbmHistoryPage() {
             },
 
             pb: {
-              xs: 6,
+              xs: 1.5,
               sm: 3
             }
           }}
@@ -1804,28 +1805,38 @@ function TbmHistoryPage() {
               <Typography
                 sx={{
                   textAlign: {
-                    xs: "left",
+                    xs: "center",
                     sm: "center"
                   },
 
                   fontSize: {
-                    xs: 18,
+                    xs: 19,
                     sm: 24
                   },
 
                   fontWeight: {
-                    xs: 750,
+                    xs: 800,
                     sm: 800
                   },
 
                   mb: {
-                    xs: 1.25,
+                    xs: 0,
                     sm: 1.25
                   },
 
-                  pb: {
-                    xs: 1.25,
+                  px: {
+                    xs: 1.75,
                     sm: 0
+                  },
+
+                  py: {
+                    xs: 1.0,
+                    sm: 0
+                  },
+
+                  bgcolor: {
+                    xs: "transparent",
+                    sm: "transparent"
                   },
 
                   borderBottom: {
@@ -1833,7 +1844,11 @@ function TbmHistoryPage() {
                     sm: "none"
                   },
 
-                  color: panelText,
+                  color: {
+                    xs: "#174a8b",
+                    sm: panelText
+                  },
+
                   lineHeight: 1.3,
                   wordBreak: "keep-all"
                 }}
@@ -1929,17 +1944,12 @@ function TbmHistoryPage() {
                         },
 
                         mt: {
-                          xs: index === 0 ? 0 : 1.5,
+                          xs: index === 0 ? 0 : 0.5,
                           sm: 0
                         },
 
                         py: {
-                          xs: 0.6,
-                          sm: 0.8
-                        },
-
-                        pl: {
-                          xs: 1.25,
+                          xs: 1.5,
                           sm: 0.8
                         },
 
@@ -1964,7 +1974,7 @@ function TbmHistoryPage() {
                         },
 
                         bgcolor: {
-                          xs: "#ffffff",
+                          xs: tableHeaderBg,
                           sm: tableHeaderBg
                         },
 
@@ -1974,7 +1984,7 @@ function TbmHistoryPage() {
                         },
 
                         textAlign: {
-                          xs: "left",
+                          xs: "center",
                           sm: "center"
                         },
 
@@ -1987,28 +1997,7 @@ function TbmHistoryPage() {
 
                         "&::before": {
                           content: '""',
-
-                          display: {
-                            xs: "block",
-                            sm: "none"
-                          },
-
-                          position: "absolute",
-                          left: 0,
-                          top: {
-                            xs: "50%",
-                            sm: 0
-                          },
-
-                          transform: {
-                            xs: "translateY(-50%)",
-                            sm: "none"
-                          },
-
-                          width: 3,
-                          height: 18,
-                          borderRadius: 10,
-                          bgcolor: accentBlue
+                          display: "none"
                         }
                       }}
                     >
@@ -2033,17 +2022,17 @@ function TbmHistoryPage() {
                     <Box
                       sx={{
                         px: {
-                          xs: 0,
+                          xs: 1.1,
                           sm: 0.65
                         },
 
                         pt: {
-                          xs: 0,
+                          xs: 0.35,
                           sm: 0.45
                         },
 
                         pb: {
-                          xs: index === sections.length - 1 ? 1.25 : 2.25,
+                          xs: 0.5,
                           sm: 0.45
                         },
 
@@ -2131,13 +2120,8 @@ function TbmHistoryPage() {
                               },
 
                               "& .MuiInputBase-input": {
-                                pt: {
-                                  xs: 0.15,
-                                  sm: 0.15
-                                },
-
-                                pb: {
-                                  xs: 0.55,
+                                py: {
+                                  xs: 0.05,
                                   sm: 0.15
                                 },
 
