@@ -1746,7 +1746,13 @@ function TbmHistoryPage() {
               bgcolor: panelBg,
               color: panelText,
               border: `1px solid ${panelBorder}`,
-              borderRadius: 0
+              borderRadius: 0,
+
+              "@media (max-width: 599.95px)": {
+                width: "calc(100vw - 24px)",
+                maxWidth: "calc(100vw - 24px)",
+                margin: "12px"
+              }
             }
           }
         }}
@@ -1763,7 +1769,12 @@ function TbmHistoryPage() {
             bgcolor: pageBg,
 
             p: {
-              xs: 0,
+              xs: 1.5,
+              sm: 3
+            },
+
+            pb: {
+              xs: 6,
               sm: 3
             }
           }}
@@ -1785,23 +1796,43 @@ function TbmHistoryPage() {
                 color: panelText,
 
                 p: {
-                  xs: 2,
+                  xs: 0,
                   sm: 2
                 }
               }}
             >
               <Typography
                 sx={{
-                  textAlign: "center",
+                  textAlign: {
+                    xs: "left",
+                    sm: "center"
+                  },
+
                   fontSize: {
-                    xs: 20,
+                    xs: 18,
                     sm: 24
                   },
-                  fontWeight: 800,
+
+                  fontWeight: {
+                    xs: 750,
+                    sm: 800
+                  },
+
                   mb: {
-                    xs: 2,
+                    xs: 1.25,
                     sm: 1.25
                   },
+
+                  pb: {
+                    xs: 1.25,
+                    sm: 0
+                  },
+
+                  borderBottom: {
+                    xs: `1px solid ${panelBorder}`,
+                    sm: "none"
+                  },
+
                   color: panelText,
                   lineHeight: 1.3,
                   wordBreak: "keep-all"
@@ -1860,26 +1891,27 @@ function TbmHistoryPage() {
                       },
 
                       mb: {
-                        xs: 1.5,
+                        xs: 0,
                         sm: 0
                       },
 
                       border: {
-                        xs: `1px solid ${panelBorder}`,
+                        xs: "none",
                         sm: "none"
                       },
 
                       borderRadius: {
-                        xs: 1,
+                        xs: 0,
                         sm: 0
                       },
 
                       overflow: {
-                        xs: "hidden",
+                        xs: "visible",
                         sm: "visible"
                       },
 
                       borderBottom: {
+                        xs: "none",
                         sm:
                           index === sections.length - 1
                             ? "none"
@@ -1889,17 +1921,37 @@ function TbmHistoryPage() {
                   >
                     <Box
                       sx={{
+                        position: "relative",
+
                         p: {
+                          xs: 0,
+                          sm: 0.8
+                        },
+
+                        mt: {
+                          xs: index === 0 ? 0 : 1.5,
+                          sm: 0
+                        },
+
+                        py: {
+                          xs: 0.6,
+                          sm: 0.8
+                        },
+
+                        pl: {
                           xs: 1.25,
                           sm: 0.8
                         },
 
                         fontSize: {
-                          xs: 14,
+                          xs: 15,
                           sm: 12.5
                         },
 
-                        fontWeight: 700,
+                        fontWeight: {
+                          xs: 800,
+                          sm: 700
+                        },
 
                         borderRight: {
                           xs: "none",
@@ -1907,12 +1959,19 @@ function TbmHistoryPage() {
                         },
 
                         borderBottom: {
-                          xs: `1px solid ${panelBorder}`,
+                          xs: "none",
                           sm: "none"
                         },
 
-                        bgcolor: tableHeaderBg,
-                        color: panelText,
+                        bgcolor: {
+                          xs: "#ffffff",
+                          sm: tableHeaderBg
+                        },
+
+                        color: {
+                          xs: "#0f2f46",
+                          sm: panelText
+                        },
 
                         textAlign: {
                           xs: "left",
@@ -1924,7 +1983,33 @@ function TbmHistoryPage() {
                         justifyContent: "center",
                         gap: 0.25,
 
-                        wordBreak: "keep-all"
+                        wordBreak: "keep-all",
+
+                        "&::before": {
+                          content: '""',
+
+                          display: {
+                            xs: "block",
+                            sm: "none"
+                          },
+
+                          position: "absolute",
+                          left: 0,
+                          top: {
+                            xs: "50%",
+                            sm: 0
+                          },
+
+                          transform: {
+                            xs: "translateY(-50%)",
+                            sm: "none"
+                          },
+
+                          width: 3,
+                          height: 18,
+                          borderRadius: 10,
+                          bgcolor: accentBlue
+                        }
                       }}
                     >
                       <span>{section.title}</span>
@@ -1948,18 +2033,32 @@ function TbmHistoryPage() {
                     <Box
                       sx={{
                         px: {
-                          xs: 0.5,
+                          xs: 0,
                           sm: 0.65
                         },
-                        py: {
-                          xs: 0.75,
+
+                        pt: {
+                          xs: 0,
+                          sm: 0.45
+                        },
+
+                        pb: {
+                          xs: 2.25,
                           sm: 0.45
                         },
 
                         display: "flex",
                         flexDirection: "column",
-                        gap: 0.2,
-                        bgcolor: inputBg,
+
+                        gap: {
+                          xs: 0,
+                          sm: 0.2
+                        },
+
+                        bgcolor: {
+                          xs: "#ffffff",
+                          sm: inputBg
+                        },
 
                         minWidth: 0,
                         width: "100%",
@@ -1992,17 +2091,46 @@ function TbmHistoryPage() {
                               "& .MuiInputBase-root": {
                                 bgcolor: "transparent",
                                 borderRadius: 1,
-                                fontSize: 13,
+                                fontSize: {
+                                  xs: 14,
+                                  sm: 13
+                                },
+
                                 color: panelText,
-                                lineHeight: 1.38,
-                                fontWeight: 500,
+
+                                lineHeight: {
+                                  xs: 1.6,
+                                  sm: 1.38
+                                },
+
+                                fontWeight: {
+                                  xs: 400,
+                                  sm: 500
+                                },
+
+                                letterSpacing: {
+                                  xs: "-0.01em",
+                                  sm: "normal"
+                                },
                                 p: 0,
                                 minWidth: 0,
                                 width: "100%"
                               },
 
+                              borderBottom: {
+                                xs:
+                                  index === sections.length - 1
+                                    ? "none"
+                                    : "1px solid #e2edf3",
+                                sm: "none"
+                              },
+
                               "& .MuiInputBase-input": {
-                                py: 0.15,
+                                py: {
+                                  xs: 0.05,
+                                  sm: 0.15
+                                },
+
                                 px: 0,
                                 minWidth: 0,
                                 fontFamily: "inherit",
@@ -2155,19 +2283,130 @@ function TbmHistoryPage() {
         </DialogContent>
         <DialogActions
           sx={{
+            position: "relative",
+
             borderTop: `1px solid ${panelBorder}`,
-            px: 2,
-            py: 1.25,
-            justifyContent: "space-between"
+
+            px: {
+              xs: 2,
+              sm: 2
+            },
+
+            py: {
+              xs: 1.25,
+              sm: 1.25
+            },
+
+            minHeight: {
+              xs: 64,
+              sm: "auto"
+            },
+
+            justifyContent: {
+              xs: "flex-end",
+              sm: "space-between"
+            },
+
+            overflow: "visible"
           }}
         >
           <Typography
             sx={{
-              fontSize: 12,
+              position: {
+                xs: "absolute",
+                sm: "static"
+              },
+
+              left: {
+                xs: 12,
+                sm: "auto"
+              },
+
+              right: {
+                xs: 12,
+                sm: "auto"
+              },
+
+              top: {
+                xs: -46,
+                sm: "auto"
+              },
+
+              minHeight: {
+                xs: draftSaveMessage ? 36 : 0,
+                sm: "auto"
+              },
+
+              px: {
+                xs: draftSaveMessage ? 1.5 : 0,
+                sm: 0
+              },
+
+              py: {
+                xs: draftSaveMessage ? 0.85 : 0,
+                sm: 0
+              },
+
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+
+              bgcolor: {
+                xs:
+                  draftSaveMessage === "수정 내용이 저장되었습니다."
+                    ? "#dcfce7"
+                    : draftSaveMessage
+                      ? "#f8fafc"
+                      : "transparent",
+                sm: "transparent"
+              },
+
+              border: {
+                xs:
+                  draftSaveMessage === "수정 내용이 저장되었습니다."
+                    ? "1px solid #4ade80"
+                    : draftSaveMessage
+                      ? "1px solid #94a3b8"
+                      : "none",
+                sm: "none"
+              },
+
+              borderRadius: {
+                xs: 1,
+                sm: 0
+              },
+
+              boxShadow: {
+                xs: draftSaveMessage
+                  ? "0 6px 16px rgba(15, 23, 42, 0.16)"
+                  : "none",
+                sm: "none"
+              },
+
+              fontSize: {
+                xs: 12.5,
+                sm: 12
+              },
+
+              fontWeight: {
+                xs: 700,
+                sm: 400
+              },
+
+              lineHeight: 1.4,
+
+              whiteSpace: {
+                xs: "nowrap",
+                sm: "normal"
+              },
+
               color:
                 draftSaveMessage === "수정 내용이 저장되었습니다."
                   ? "#047857"
-                  : mutedText
+                  : mutedText,
+
+              pointerEvents: "none",
+              zIndex: 10
             }}
           >
             {draftSaveMessage}
@@ -2176,14 +2415,51 @@ function TbmHistoryPage() {
           <Box
             sx={{
               display: "flex",
-              gap: 1
+              alignItems: "center",
+
+              gap: {
+                xs: 1,
+                sm: 1
+              },
+
+              flexShrink: 0
             }}
           >
             <Button
               onClick={() => setViewOpen(false)}
               disabled={isSavingDraft}
               sx={{
-                color: panelText
+                minWidth: {
+                  xs: 60,
+                  sm: 64
+                },
+
+                height: {
+                  xs: 40,
+                  sm: "auto"
+                },
+
+                px: {
+                  xs: 1.5,
+                  sm: 1
+                },
+
+                color: panelText,
+
+                fontSize: {
+                  xs: 14,
+                  sm: 14
+                },
+
+                fontWeight: {
+                  xs: 700,
+                  sm: 500
+                },
+
+                borderRadius: {
+                  xs: 0,
+                  sm: 0
+                }
               }}
             >
               닫기
@@ -2198,10 +2474,38 @@ function TbmHistoryPage() {
                 viewSections.length === 0
               }
               sx={{
+                minWidth: {
+                  xs: 76,
+                  sm: "auto"
+                },
+
+                height: {
+                  xs: 40,
+                  sm: "auto"
+                },
+
+                px: {
+                  xs: 1.5,
+                  sm: 2
+                },
+
                 bgcolor: accentBlue,
                 color: "#ffffff",
+
                 borderRadius: 0,
                 boxShadow: "none",
+
+                fontSize: {
+                  xs: 14,
+                  sm: 14
+                },
+
+                fontWeight: {
+                  xs: 700,
+                  sm: 500
+                },
+
+                whiteSpace: "nowrap",
 
                 "&:hover": {
                   bgcolor: accentBlueHover,
