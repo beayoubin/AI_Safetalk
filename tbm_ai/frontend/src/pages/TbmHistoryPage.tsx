@@ -878,10 +878,7 @@ function TbmHistoryPage() {
     editingSignatures[kind];
 
   const getSectionLines = (content: string): string[] => {
-    const lines = content
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
+    const lines = content.split("\n");
 
     return lines.length > 0 ? lines : [""];
   };
