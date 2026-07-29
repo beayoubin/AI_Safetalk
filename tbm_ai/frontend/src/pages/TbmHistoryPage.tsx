@@ -2043,7 +2043,7 @@ function TbmHistoryPage() {
                         },
 
                         pb: {
-                          xs: 2.25,
+                          xs: index === sections.length - 1 ? 1.25 : 2.25,
                           sm: 0.45
                         },
 
@@ -2051,13 +2051,18 @@ function TbmHistoryPage() {
                         flexDirection: "column",
 
                         gap: {
-                          xs: 0,
+                          xs: 0.35,
                           sm: 0.2
                         },
 
                         bgcolor: {
                           xs: "#ffffff",
                           sm: inputBg
+                        },
+
+                        borderBottom: {
+                          xs: `1px solid ${panelBorder}`,
+                          sm: "none"
                         },
 
                         minWidth: 0,
@@ -2088,6 +2093,14 @@ function TbmHistoryPage() {
                               minWidth: 0,
                               maxWidth: "100%",
 
+                              borderBottom: {
+                                xs:
+                                  lineIndex === getSectionLines(section.content).length - 1
+                                    ? "none"
+                                    : "1px solid #edf2f6",
+                                sm: "none"
+                              },
+
                               "& .MuiInputBase-root": {
                                 bgcolor: "transparent",
                                 borderRadius: 1,
@@ -2117,17 +2130,14 @@ function TbmHistoryPage() {
                                 width: "100%"
                               },
 
-                              borderBottom: {
-                                xs:
-                                  index === sections.length - 1
-                                    ? "none"
-                                    : "1px solid #e2edf3",
-                                sm: "none"
-                              },
-
                               "& .MuiInputBase-input": {
-                                py: {
-                                  xs: 0.05,
+                                pt: {
+                                  xs: 0.15,
+                                  sm: 0.15
+                                },
+
+                                pb: {
+                                  xs: 0.55,
                                   sm: 0.15
                                 },
 
