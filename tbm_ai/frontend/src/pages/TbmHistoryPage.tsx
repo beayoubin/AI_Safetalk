@@ -29,6 +29,7 @@ import NavigateNextRoundedIcon from "@mui/icons-material/NavigateNextRounded";
 import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import TextField from "@mui/material/TextField";
 
 const pageBg = "#ffffff";
 const pageGradient = "linear-gradient(180deg, #ffffff 0%, #ffffff 100%)";
@@ -194,6 +195,7 @@ const SCRIPT_TEMPLATE: Array<Omit<PreviewSection, "content">> = [
   { title: "지적확인" }
 ];
 
+/* 사용하지 않는 객체
 const PREVIEW_SECTION_ALIAS_MAP: Record<string, string[]> = {
   "작업장소 이동": [
     "1. 작업장소 이동",
@@ -210,15 +212,18 @@ const PREVIEW_SECTION_ALIAS_MAP: Record<string, string[]> = {
   비상대피요령: ["8. 비상대피요령", "비상대피", "비상 시 대피요령", "비상", "대피"],
   지적확인: ["9. 지적확인", "숙지여부 확인", "속지여부 확인", "참석자 확인"]
 };
+*/
 
-const normalizePreviewLabel = (value: string): string =>
-  value
-    .replace(/\(.*?\)/g, "")
-    .replace(/^#{1,6}\s*/, "")
-    .replace(/^\d+\s*[.)]\s*/, "")
-    .replace(/[：:]/g, "")
-    .replace(/\s+/g, "")
-    .trim();
+const normalizePreviewLabel = (value: string): string => {
+  return value
+    .trim()
+    .replace(/^#{1,6}\s*/, "")       // ### 제목 표시 제거
+    .replace(/^\d+[.)]\s*/, "")      // 4. 또는 4) 제거
+    .replace(/^[-*•■▪▶]+\s*/, "")    // 글머리 기호 제거
+    .replace(/[：:]\s*$/, "")         // 제목 끝의 : 제거
+    .replace(/\s+/g, "")              // 띄어쓰기 제거
+    .toLowerCase();
+};
 
 const extractPrimaryScriptText = (draft: string): string => {
   const startMarker = "## 2. TBM 대본(생성 결과)";
@@ -252,16 +257,15 @@ const extractPrimaryScriptText = (draft: string): string => {
 
 const detectPreviewSectionIndex = (line: string): number => {
   const normalizedLine = normalizePreviewLabel(line);
-  if (!normalizedLine) return -1;
+
+  if (!normalizedLine) {
+    return -1;
+  }
 
   return SCRIPT_TEMPLATE.findIndex((section) => {
-    const candidates = [section.title, ...(PREVIEW_SECTION_ALIAS_MAP[section.title] ?? [])];
-    return candidates.some((candidate) => {
-      const normalizedCandidate = normalizePreviewLabel(candidate);
-      return (
-        normalizedLine === normalizedCandidate || normalizedLine.startsWith(normalizedCandidate)
-      );
-    });
+    const normalizedTitle = normalizePreviewLabel(section.title);
+
+    return normalizedLine === normalizedTitle;
   });
 };
 
@@ -384,6 +388,11 @@ function TbmHistoryPage() {
   const [viewHistoryId, setViewHistoryId] = useState<number | null>(null);
   const [viewTitle, setViewTitle] = useState("");
   const [viewText, setViewText] = useState("");
+
+  const [viewSections, setViewSections] = useState<PreviewSection[]>([]);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [draftSaveMessage, setDraftSaveMessage] = useState("");
+
   const [signatureChecklistChecks, setSignatureChecklistChecks] = useState<Record<string, boolean>>(
     {}
   );
@@ -562,37 +571,67 @@ function TbmHistoryPage() {
     signedAt: override.signedAt ?? new Date().toISOString()
   });
 
-  const saveSignaturePayload = async (payload: TbmSignatureData) => {
+  const saveSignaturePayload = async (
+    payload: TbmSignatureData
+  ): Promise<boolean> => {
     if (!viewHistoryId) {
-      return;
+      return false;
     }
 
     setIsSavingSignature(true);
     setSignatureSaveMessage("서명 저장 중...");
+    setErrorMessage("");
+
     try {
-      const response = await apiFetch(`/tbm/history/${viewHistoryId}/signature`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      const response = await apiFetch(
+        `/tbm/history/${viewHistoryId}/signature`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        }
+      );
+
       const result = (await response.json().catch(() => ({}))) as {
         ok?: boolean;
         message?: string;
       };
+
       if (!response.ok || !result.ok) {
-        throw new Error(result.message ?? "서명 저장에 실패했습니다.");
+        throw new Error(
+          result.message ?? "서명 저장에 실패했습니다."
+        );
       }
+
       setSignatureSaveMessage("서명 저장됨");
+
       setRows((prev) =>
         prev.map((row) =>
           row.id === viewHistoryId
-            ? { ...row, signed: Boolean(payload.workerSignature || payload.supervisorSignature) }
+            ? {
+              ...row,
+              signed: Boolean(
+                payload.workerSignature ||
+                payload.supervisorSignature
+              )
+            }
             : row
         )
       );
+
+      return true;
     } catch (error) {
       setSignatureSaveMessage("");
-      setErrorMessage((error as Error).message);
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "서명 저장에 실패했습니다."
+      );
+
+      return false;
     } finally {
       setIsSavingSignature(false);
     }
@@ -662,7 +701,8 @@ function TbmHistoryPage() {
     kind: SignatureKind,
     event: React.PointerEvent<HTMLCanvasElement>
   ) => {
-    if (viewLoading || isSavingSignature) return;
+    if (viewLoading || isSavingSignature || !isSignatureEditing(kind)
+    ) { return; }
     const canvas = getSignatureCanvas(kind);
     if (!canvas) return;
 
@@ -677,7 +717,8 @@ function TbmHistoryPage() {
     kind: SignatureKind,
     event: React.PointerEvent<HTMLCanvasElement>
   ) => {
-    if (activeSignatureRef.current !== kind || viewLoading || isSavingSignature) return;
+    if (activeSignatureRef.current !== kind || viewLoading || isSavingSignature || !isSignatureEditing(kind)
+    ) { return; }
     const canvas = getSignatureCanvas(kind);
     const previousPoint = lastSignaturePointRef.current;
     const ctx = canvas?.getContext("2d");
@@ -704,17 +745,54 @@ function TbmHistoryPage() {
       }
       const signatureImage = canvas.toDataURL("image/png");
       setSignatureValue(kind, signatureImage);
-      void saveSignaturePayload(
-        buildSignaturePayload(
-          kind === "worker"
-            ? { workerSignature: signatureImage }
-            : { supervisorSignature: signatureImage }
-        )
-      );
+      setSignatureSaveMessage("");
     }
     activeSignatureRef.current = null;
     lastSignaturePointRef.current = null;
     event.preventDefault();
+  };
+
+  //서명
+  const handleEditSignature = (kind: SignatureKind) => {
+    setEditingSignatures((prev) => ({
+      ...prev,
+      [kind]: true
+    }));
+
+    setSignatureSaveMessage("");
+  };
+
+  //서명
+  const handleSaveSignature = async (
+    kind: SignatureKind
+  ) => {
+    const signatureValue = getSignatureValue(kind);
+
+    if (!signatureValue) {
+      setSignatureSaveMessage("서명을 입력해 주세요.");
+      return;
+    }
+
+    const saved = await saveSignaturePayload(
+      buildSignaturePayload(
+        kind === "worker"
+          ? {
+            workerSignature: signatureValue
+          }
+          : {
+            supervisorSignature: signatureValue
+          }
+      )
+    );
+
+    if (!saved) {
+      return;
+    }
+
+    setEditingSignatures((prev) => ({
+      ...prev,
+      [kind]: false
+    }));
   };
 
   const clearSignature = (kind: SignatureKind) => {
@@ -725,12 +803,16 @@ function TbmHistoryPage() {
       ctx.clearRect(0, 0, rect.width, rect.height);
     }
     setSignatureValue(kind, "");
-    void saveSignaturePayload(
-      buildSignaturePayload(
-        kind === "worker" ? { workerSignature: "" } : { supervisorSignature: "" }
-      )
-    );
+    setSignatureSaveMessage("");
   };
+
+  //서명
+  const [editingSignatures, setEditingSignatures] = useState<
+    Record<SignatureKind, boolean>
+  >({
+    worker: true,
+    supervisor: true
+  });
 
   useEffect(() => {
     if (!viewOpen || viewLoading) return;
@@ -755,6 +837,8 @@ function TbmHistoryPage() {
     setViewHistoryId(id);
     setViewTitle("");
     setViewText("");
+    setViewSections([]);
+    setDraftSaveMessage("");
     setSignatureChecklistChecks({});
     setWorkerSignature("");
     setSupervisorSignature("");
@@ -767,15 +851,63 @@ function TbmHistoryPage() {
       }
       setViewTitle(result.row.title);
       setViewText(result.row.draftText);
+      setViewSections(buildPreviewSections(result.row.draftText));
       const signature = result.row.signature ?? EMPTY_SIGNATURE;
       setSignatureChecklistChecks(signature.checklist ?? {});
-      setWorkerSignature(signature.workerSignature ?? "");
-      setSupervisorSignature(signature.supervisorSignature ?? "");
+      const loadedWorkerSignature = signature.workerSignature ?? "";
+      const loadedSupervisorSignature =
+        signature.supervisorSignature ?? "";
+
+      setWorkerSignature(loadedWorkerSignature);
+      setSupervisorSignature(loadedSupervisorSignature);
+
+      setEditingSignatures({
+        worker: !loadedWorkerSignature,
+        supervisor: !loadedSupervisorSignature
+      });
     } catch (error) {
       setViewText((error as Error).message);
     } finally {
       setViewLoading(false);
     }
+  };
+
+  //서명
+  const isSignatureEditing = (kind: SignatureKind) =>
+    editingSignatures[kind];
+
+  const getSectionLines = (content: string): string[] => {
+    const lines = content
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    return lines.length > 0 ? lines : [""];
+  };
+
+  const handleViewLineChange = (
+    sectionIndex: number,
+    lineIndex: number,
+    value: string
+  ) => {
+    setViewSections((prev) =>
+      prev.map((section, index) => {
+        if (index !== sectionIndex) {
+          return section;
+        }
+
+        const lines = getSectionLines(section.content);
+
+        lines[lineIndex] = value;
+
+        return {
+          ...section,
+          content: lines.join("\n")
+        };
+      })
+    );
+
+    setDraftSaveMessage("");
   };
 
   const handleDownload = async (id: number, kind: "pdf" | "docx") => {
@@ -793,6 +925,112 @@ function TbmHistoryPage() {
       setErrorMessage((error as Error).message);
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const buildEditedDraftText = (sections: PreviewSection[]): string => {
+    return sections
+      .map((section, index) => {
+        const subtitle = section.subtitle ? ` ${section.subtitle}` : "";
+
+        return `### ${index + 1}. ${section.title}${subtitle}
+  ${section.content.trim()}`;
+      })
+      .join("\n\n")
+      .trim();
+  };
+
+  const handleSaveDraft = async () => {
+    if (viewHistoryId === null) return;
+
+    const editedScriptText = buildEditedDraftText(viewSections);
+
+    if (!editedScriptText.trim()) {
+      setDraftSaveMessage("저장할 대본 내용이 없습니다.");
+      return;
+    }
+
+    setIsSavingDraft(true);
+    setDraftSaveMessage("수정 내용 저장 중...");
+
+    try {
+      const startMarker = "## 2. TBM 대본(생성 결과)";
+      const endMarkers = [
+        "\n=== 구분선 ===",
+        "\n# TBM 회의록",
+        "\n## 1. 회의 개요",
+        "\n### Safety Logic Check",
+        "\n### 기상 특보 대응",
+        "\n### PPE 체크리스트",
+        "\n### 체크리스트/서명",
+        "\n### RAG 근거"
+      ];
+
+      let updatedDraftText = editedScriptText;
+
+      const startIndex = viewText.indexOf(startMarker);
+
+      if (startIndex >= 0) {
+        const contentStartIndex = startIndex + startMarker.length;
+
+        let contentEndIndex = viewText.length;
+
+        endMarkers.forEach((marker) => {
+          const markerIndex = viewText.indexOf(marker, contentStartIndex);
+
+          if (markerIndex >= 0 && markerIndex < contentEndIndex) {
+            contentEndIndex = markerIndex;
+          }
+        });
+
+        const beforeScript = viewText.slice(0, contentStartIndex);
+        const afterScript = viewText.slice(contentEndIndex);
+
+        updatedDraftText =
+          `${beforeScript}\n\n${editedScriptText}${afterScript}`.trim();
+      }
+
+      const response = await apiFetch(
+        `/tbm/history/${viewHistoryId}/draft`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            draftText: updatedDraftText
+          })
+        }
+      );
+
+      const result = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        message?: string;
+        row?: {
+          draftText?: string;
+        };
+      };
+
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          result.message ?? "수정 내용 저장에 실패했습니다."
+        );
+      }
+
+      const savedDraftText =
+        result.row?.draftText ?? updatedDraftText;
+
+      setViewText(savedDraftText);
+      setViewSections(buildPreviewSections(savedDraftText));
+      setDraftSaveMessage("수정 내용이 저장되었습니다.");
+    } catch (error) {
+      setDraftSaveMessage(
+        error instanceof Error
+          ? error.message
+          : "수정 내용 저장에 실패했습니다."
+      );
+    } finally {
+      setIsSavingDraft(false);
     }
   };
 
@@ -861,26 +1099,89 @@ function TbmHistoryPage() {
         >
           {label}
         </Typography>
-        <Button
-          size="small"
-          variant="outlined"
-          onClick={() => clearSignature(kind)}
-          disabled={viewLoading || isSavingSignature || !getSignatureValue(kind)}
-          sx={{
-            minWidth: 54,
-            px: 0.8,
-            py: 0.2,
-            fontSize: 11,
-            color: panelText,
-            borderColor: panelBorder,
-            borderRadius: 0,
-            whiteSpace: "nowrap",
-            textTransform: "none",
-            "&:hover": { borderColor: accentBlue, bgcolor: "#eff6ff" }
-          }}
-        >
-          지우기
-        </Button>
+        <Box sx={{ display: "flex", gap: 0.5 }}>
+          {isSignatureEditing(kind) ? (
+            <>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => clearSignature(kind)}
+                disabled={
+                  viewLoading ||
+                  isSavingSignature ||
+                  !getSignatureValue(kind)
+                }
+                sx={{
+                  minWidth: 54,
+                  px: 0.8,
+                  py: 0.2,
+                  fontSize: 11,
+                  color: panelText,
+                  borderColor: panelBorder,
+                  borderRadius: 0,
+                  whiteSpace: "nowrap",
+                  textTransform: "none",
+                  "&:hover": {
+                    borderColor: accentBlue,
+                    bgcolor: "#eff6ff"
+                  }
+                }}
+              >
+                지우기
+              </Button>
+
+              <Button
+                size="small"
+                variant="contained"
+                onClick={() => void handleSaveSignature(kind)}
+                disabled={
+                  viewLoading ||
+                  isSavingSignature ||
+                  !getSignatureValue(kind)
+                }
+                sx={{
+                  minWidth: 54,
+                  px: 0.8,
+                  py: 0.2,
+                  fontSize: 11,
+                  bgcolor: accentBlue,
+                  borderRadius: 0,
+                  whiteSpace: "nowrap",
+                  textTransform: "none",
+                  "&:hover": {
+                    bgcolor: accentBlueHover
+                  }
+                }}
+              >
+                저장
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => handleEditSignature(kind)}
+              disabled={viewLoading || isSavingSignature}
+              sx={{
+                minWidth: 64,
+                px: 0.8,
+                py: 0.2,
+                fontSize: 11,
+                color: panelText,
+                borderColor: panelBorder,
+                borderRadius: 0,
+                whiteSpace: "nowrap",
+                textTransform: "none",
+                "&:hover": {
+                  borderColor: accentBlue,
+                  bgcolor: "#eff6ff"
+                }
+              }}
+            >
+              수정하기
+            </Button>
+          )}
+        </Box>
       </Box>
       <Box
         sx={{
@@ -918,8 +1219,8 @@ function TbmHistoryPage() {
             width: "100%",
             height: "112px",
             display: "block",
-            cursor: viewLoading || isSavingSignature ? "not-allowed" : "crosshair",
-            touchAction: "none"
+            cursor: viewLoading || isSavingSignature || !isSignatureEditing(kind)
+              ? "default" : "crosshair", touchAction: "none"
           }}
         />
       </Box>
@@ -1543,11 +1844,11 @@ function TbmHistoryPage() {
                       textAlign: "center"
                     }}
                   >
-                    T.B.M 리더 멘트
+                    T.B.M 리더 멘트 (수정 가능)
                   </Box>
                 </Box>
 
-                {buildPreviewSections(viewText).map((section, index, sections) => (
+                {viewSections.map((section, index, sections) => (
                   <Box
                     key={`${section.title}-${index}`}
                     sx={{
@@ -1644,38 +1945,87 @@ function TbmHistoryPage() {
                       ) : null}
                     </Box>
 
-                    <Typography
-                      component="pre"
+                    <Box
                       sx={{
-                        m: 0,
-
-                        p: {
-                          xs: 1.5,
-                          sm: 1
+                        px: {
+                          xs: 0.5,
+                          sm: 0.65
                         },
+                        py: {
+                          xs: 0.75,
+                          sm: 0.45
+                        },
+
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 0.2,
+                        bgcolor: inputBg,
 
                         minWidth: 0,
-                        whiteSpace: "pre-wrap",
-                        fontFamily: "inherit",
-
-                        fontSize: {
-                          xs: 14,
-                          sm: 13
-                        },
-
-                        lineHeight: {
-                          xs: 1.75,
-                          sm: 1.65
-                        },
-
-                        wordBreak: "keep-all",
-                        overflowWrap: "break-word",
-                        color: panelText,
-                        bgcolor: panelBg
+                        width: "100%",
+                        maxWidth: "100%",
+                        boxSizing: "border-box"
                       }}
                     >
-                      {section.content}
-                    </Typography>
+                      {getSectionLines(section.content).map(
+                        (line, lineIndex) => (
+                          <TextField
+                            key={`${section.title}-${lineIndex}`}
+                            multiline
+                            minRows={1}
+                            fullWidth
+                            value={line}
+                            onChange={(event) =>
+                              handleViewLineChange(
+                                index,
+                                lineIndex,
+                                event.target.value
+                              )
+                            }
+                            placeholder="AI 생성 멘트가 이 영역에 표시됩니다."
+                            disabled={viewLoading || isSavingDraft}
+                            sx={{
+                              width: "100%",
+                              minWidth: 0,
+                              maxWidth: "100%",
+
+                              "& .MuiInputBase-root": {
+                                bgcolor: "transparent",
+                                borderRadius: 1,
+                                fontSize: 13,
+                                color: panelText,
+                                lineHeight: 1.38,
+                                fontWeight: 500,
+                                p: 0,
+                                minWidth: 0,
+                                width: "100%"
+                              },
+
+                              "& .MuiInputBase-input": {
+                                py: 0.15,
+                                px: 0,
+                                minWidth: 0,
+                                fontFamily: "inherit",
+                                wordBreak: "keep-all",
+                                overflowWrap: "break-word"
+                              },
+
+                              "& .MuiOutlinedInput-notchedOutline": {
+                                borderColor: "transparent"
+                              },
+
+                              "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+                                borderColor: "#bfdbfe"
+                              },
+
+                              "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                                borderColor: accentBlue
+                              }
+                            }}
+                          />
+                        )
+                      )}
+                    </Box>
                   </Box>
                 ))}
               </Box>
@@ -1803,10 +2153,78 @@ function TbmHistoryPage() {
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ borderTop: `1px solid ${panelBorder}` }}>
-          <Button onClick={() => setViewOpen(false)} sx={{ color: panelText }}>
-            닫기
-          </Button>
+        <DialogActions
+          sx={{
+            borderTop: `1px solid ${panelBorder}`,
+            px: 2,
+            py: 1.25,
+            justifyContent: "space-between"
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: 12,
+              color:
+                draftSaveMessage === "수정 내용이 저장되었습니다."
+                  ? "#047857"
+                  : mutedText
+            }}
+          >
+            {draftSaveMessage}
+          </Typography>
+
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1
+            }}
+          >
+            <Button
+              onClick={() => setViewOpen(false)}
+              disabled={isSavingDraft}
+              sx={{
+                color: panelText
+              }}
+            >
+              닫기
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={() => void handleSaveDraft()}
+              disabled={
+                viewLoading ||
+                isSavingDraft ||
+                viewSections.length === 0
+              }
+              sx={{
+                bgcolor: accentBlue,
+                color: "#ffffff",
+                borderRadius: 0,
+                boxShadow: "none",
+
+                "&:hover": {
+                  bgcolor: accentBlueHover,
+                  boxShadow: "none"
+                }
+              }}
+            >
+              {isSavingDraft ? (
+                <>
+                  <CircularProgress
+                    size={15}
+                    sx={{
+                      mr: 0.75,
+                      color: "#ffffff"
+                    }}
+                  />
+                  저장 중
+                </>
+              ) : (
+                "수정 저장"
+              )}
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 
