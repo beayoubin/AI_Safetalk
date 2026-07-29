@@ -339,7 +339,7 @@ const buildPpeChecklistSummary = (ppeContext: string): string => {
     : "- [ ] PPE 착용 확인 (작업유형별 세부 규정 미등록, 기본 보호구 기준 적용)";
 };
 
-// ===== 6단계 리더 멘트(T.B.M 리더 멘트) 구성 =====
+// ===== 9단계 리더 멘트(T.B.M 리더 멘트) 구성 =====
 // 현장에서 실제로 쓰는 리더 진행 멘트 양식을 그대로 따르며, 소규모 로컬 LLM의 자유생성 문장이
 // 반복적으로 맥락에 안 맞는 문구를 만들어내는 문제를 근본적으로 없애기 위해 실제 조회된 데이터
 // (날씨/사고사례DB/PPE규정/작업유형)만으로 결정론적으로 문장을 구성한다.
@@ -604,32 +604,33 @@ const DEFAULT_WORK_PROCEDURE_STEPS = WORK_PROCEDURE_STEPS_BY_CATEGORY.CAT01;
 const pickWorkProcedureSteps = (categoryCode: string | null): string[] =>
   (categoryCode && WORK_PROCEDURE_STEPS_BY_CATEGORY[categoryCode]) || DEFAULT_WORK_PROCEDURE_STEPS;
 
-const buildWorkRiskProcedureSectionBody = (
+const buildWorkShareSectionBody = (
   input: GenerateTbmInput,
-  workContent: WorkContentFallback,
-  incidentContext: string
+  workContent: WorkContentFallback
 ): string => {
   const detailedWork = getOptionValue(input.options, "세부 작업내용");
   const equipment = getOptionValue(input.options, "주요 장비/공구");
-  const siteHazards = getOptionValue(input.options, "현장 특이사항/추가 위험요인");
-  const safetyMeasures = getOptionValue(input.options, "안전조치/작업중지 기준");
   const task = detailedWork || pickSampleTask(workContent.sampleTasks, workContent.workType);
   const location = input.preset.location || "현장";
+  const lines = [
+    "다음은 오늘 작업내용을 공유하겠습니다.",
+    `오늘 작업내용은 ${location}에서 진행하는 ${task} 작업입니다.`
+  ];
+  if (equipment) {
+    lines.push(`사용 장비와 공구는 ${equipment}입니다. 사용 전 점검상태를 확인해 주시기 바랍니다.`);
+  }
+  lines.push("작업절차는 다음과 같습니다.", ...pickWorkProcedureSteps(workContent.categoryCode));
+  lines.push("각 단계별 담당자와 신호체계를 확인하고, 변경사항이 있으면 즉시 공유해 주시기 바랍니다.");
+
+  return lines.join("\n");
+};
+
+const buildCoreRiskSectionBody = (input: GenerateTbmInput, incidentContext: string): string => {
+  const siteHazards = getOptionValue(input.options, "현장 특이사항/추가 위험요인");
   const highlights = extractIncidentHighlights(incidentContext, 2);
   const [primaryHighlight, ...restHighlights] = highlights;
 
-  const lines = [
-    "다음은 오늘 작업하실 내용과 위험요인 및 작업절차에 대해 공유하는 시간을 갖도록 하겠습니다.",
-    `오늘 작업내용은 ${location}에서 진행하는 ${task} 작업입니다.`,
-    "오늘 작업의 핵심 위험요인은 다음과 같습니다."
-  ];
-  if (equipment) {
-    lines.splice(
-      2,
-      0,
-      `사용 장비와 공구는 ${equipment}입니다. 사용 전 점검상태를 확인해 주시기 바랍니다.`
-    );
-  }
+  const lines = ["다음은 오늘 작업의 핵심 위험요인을 확인하겠습니다."];
 
   if (primaryHighlight) {
     lines.push(`- ${formatIncidentHighlight(primaryHighlight)}`);
@@ -645,13 +646,56 @@ const buildWorkRiskProcedureSectionBody = (
   if (siteHazards) {
     lines.push(`- 현장 추가 위험요인: ${siteHazards}`);
   }
+  lines.push("위험징후가 보이면 즉시 작업을 멈추고 주변 작업자에게 알려 주시기 바랍니다.");
 
-  lines.push("작업절차는 다음과 같습니다.", ...pickWorkProcedureSteps(workContent.categoryCode));
+  return lines.join("\n");
+};
+
+const buildSafetyActionSectionBody = (
+  input: GenerateTbmInput,
+  ppeContext: string
+): string => {
+  const safetyMeasures = getOptionValue(input.options, "안전조치/작업중지 기준");
+  const lines = [buildPpeCheckSectionBody(input, ppeContext)];
   if (safetyMeasures) {
     lines.push(`추가 안전조치 및 작업중지 기준은 다음과 같습니다. ${safetyMeasures}`);
   }
-  lines.push("이상의 작업내용과 위험요인, 절차를 반드시 준수하여 안전하게 작업하시기 바랍니다.");
+  lines.push("작업허가서, 통제구역, LOTO, 소화기 등 필요한 조치가 완료되었는지 다시 한 번 확인해 주시기 바랍니다.");
 
+  return lines.join("\n");
+};
+
+const buildIncidentCaseSectionBody = (
+  input: GenerateTbmInput,
+  incidentContext: string
+): string => {
+  const workType = input.preset.workType || "오늘 작업";
+  const highlights = extractIncidentHighlights(incidentContext, 2);
+  const lines = [`다음은 ${workType} 작업과 유사한 사고사례를 공유하겠습니다.`];
+  if (highlights.length > 0) {
+    highlights.forEach((item) => {
+      lines.push(`- ${formatIncidentHighlight(item)}`);
+    });
+  } else {
+    lines.push(
+      `유사한 ${workType} 작업에서 작업 전 확인 부족과 안전조치 미준수로 사고가 발생한 사례가 있습니다.`
+    );
+  }
+  lines.push("같은 사고가 반복되지 않도록 작업 전 확인과 상호 점검을 철저히 해 주시기 바랍니다.");
+
+  return lines.join("\n");
+};
+
+const buildOpinionSectionBody = (input: GenerateTbmInput): string => {
+  const specialNotes = getOptionValue(input.options, "특이사항");
+  const lines = [
+    "다음은 의견 및 질의응답 시간입니다.",
+    "오늘 작업내용, 위험요인, 안전조치 중 이해가 되지 않거나 추가로 확인할 사항이 있으면 말씀해 주시기 바랍니다.",
+    "작업 중에도 의문사항이나 위험요인을 발견하면 즉시 반장에게 공유해 주시기 바랍니다."
+  ];
+  if (specialNotes) {
+    lines.push(`오늘 공유할 추가 특이사항은 다음과 같습니다. ${specialNotes}`);
+  }
   return lines.join("\n");
 };
 
@@ -691,13 +735,16 @@ const buildEmergencyEvacuationSectionBody = (input: GenerateTbmInput): string =>
   return lines.join("\n");
 };
 
-const TBM_SIX_STEPS: Array<{ number: number; title: string; subtitle?: string }> = [
-  { number: 1, title: "작업장소 이동", subtitle: "체조 및 스트레칭" },
-  { number: 2, title: "건강상태 확인" },
-  { number: 3, title: "보호구 착용상태 확인" },
-  { number: 4, title: "작업내용, 위험요인, 작업절차 확인" },
-  { number: 5, title: "숙지여부 확인" },
-  { number: 6, title: "비상 시 대피요령" }
+const TBM_NINE_STEPS: Array<{ number: number; title: string }> = [
+  { number: 1, title: "인사" },
+  { number: 2, title: "건강" },
+  { number: 3, title: "작업" },
+  { number: 4, title: "위험" },
+  { number: 5, title: "조치" },
+  { number: 6, title: "사례" },
+  { number: 7, title: "의견" },
+  { number: 8, title: "비상" },
+  { number: 9, title: "지적확인" }
 ];
 
 type LeaderScriptContext = {
@@ -712,22 +759,20 @@ const buildLeaderScriptDraft = (
   context: LeaderScriptContext
 ): string => {
   const bodies: Record<string, string> = {
-    "작업장소 이동": buildKickoffSectionBody(input),
-    "건강상태 확인": buildHealthCheckSectionBody(context.weatherContext),
-    "보호구 착용상태 확인": buildPpeCheckSectionBody(input, context.ppeContext),
-    "작업내용, 위험요인, 작업절차 확인": buildWorkRiskProcedureSectionBody(
-      input,
-      workContent,
-      context.incidentContext
-    ),
-    "숙지여부 확인": buildComprehensionCheckSectionBody(input, context.incidentContext),
-    "비상 시 대피요령": buildEmergencyEvacuationSectionBody(input)
+    인사: buildKickoffSectionBody(input),
+    건강: buildHealthCheckSectionBody(context.weatherContext),
+    작업: buildWorkShareSectionBody(input, workContent),
+    위험: buildCoreRiskSectionBody(input, context.incidentContext),
+    조치: buildSafetyActionSectionBody(input, context.ppeContext),
+    사례: buildIncidentCaseSectionBody(input, context.incidentContext),
+    의견: buildOpinionSectionBody(input),
+    비상: buildEmergencyEvacuationSectionBody(input),
+    지적확인: buildComprehensionCheckSectionBody(input, context.incidentContext)
   };
 
-  return TBM_SIX_STEPS.map(
-    (step) =>
-      `### ${step.number}. ${step.title}${step.subtitle ? ` (${step.subtitle})` : ""}\n${bodies[step.title]}`
-  ).join("\n\n");
+  return TBM_NINE_STEPS.map((step) => `### ${step.number}. ${step.title}\n${bodies[step.title]}`).join(
+    "\n\n"
+  );
 };
 
 const buildRagReferenceSection = (ragContext: string): string => {

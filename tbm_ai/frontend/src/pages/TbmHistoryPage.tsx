@@ -184,35 +184,35 @@ type PreviewSection = {
 };
 
 const SCRIPT_TEMPLATE: Array<Omit<PreviewSection, "content">> = [
-  { title: "작업장소 이동", subtitle: "(인사/체조)" },
-  { title: "건강상태 확인" },
-  { title: "작업내용 공유" },
-  { title: "핵심 위험요인" },
-  { title: "안전조치 확인" },
-  { title: "유사 사고사례" },
-  { title: "의견 및 질의응답" },
-  { title: "비상대피요령" },
+  { title: "인사" },
+  { title: "건강" },
+  { title: "작업" },
+  { title: "위험" },
+  { title: "조치" },
+  { title: "사례" },
+  { title: "의견" },
+  { title: "비상" },
   { title: "지적확인" }
 ];
 
-/* 사용하지 않는 객체
 const PREVIEW_SECTION_ALIAS_MAP: Record<string, string[]> = {
-  "작업장소 이동": [
+  인사: [
+    "1. 인사",
     "1. 작업장소 이동",
     "작업장소 이동(인사/체조)",
     "작업장소 이동 (인사/체조)",
-    "작업장소 이동 (체조 및 스트레칭)"
+    "작업장소 이동 (체조 및 스트레칭)",
+    "작업장소 이동"
   ],
-  "건강상태 확인": ["2. 건강상태 확인", "건강"],
-  "작업내용 공유": ["3. 작업내용 공유", "작업내용", "작업내용, 위험요인, 작업절차 확인"],
-  "핵심 위험요인": ["4. 핵심 위험요인", "위험", "잠재위험요인"],
-  "안전조치 확인": ["5. 안전조치 확인", "조치", "보호구 착용상태 확인", "보호구", "PPE"],
-  "유사 사고사례": ["6. 유사 사고사례", "유사 사고 사례", "사고사례", "중점위험요인"],
-  "의견 및 질의응답": ["7. 의견 및 질의응답", "질의응답", "질의 응답", "Q&A", "작업 후 종료 미팅"],
-  비상대피요령: ["8. 비상대피요령", "비상대피", "비상 시 대피요령", "비상", "대피"],
+  건강: ["2. 건강", "2. 건강상태 확인", "건강상태 확인", "건강상태"],
+  작업: ["3. 작업", "3. 작업내용 공유", "작업내용 공유", "작업내용", "작업내용, 위험요인, 작업절차 확인"],
+  위험: ["4. 위험", "4. 핵심 위험요인", "핵심 위험요인", "잠재위험요인"],
+  조치: ["5. 조치", "5. 안전조치 확인", "안전조치 확인", "보호구 착용상태 확인", "보호구", "PPE"],
+  사례: ["6. 사례", "6. 유사 사고사례", "유사 사고사례", "유사 사고 사례", "사고사례", "중점위험요인"],
+  의견: ["7. 의견", "7. 의견 및 질의응답", "의견 및 질의응답", "질의응답", "질의 응답", "Q&A", "작업 후 종료 미팅"],
+  비상: ["8. 비상", "8. 비상대피요령", "비상대피요령", "비상대피", "비상 시 대피요령", "대피"],
   지적확인: ["9. 지적확인", "숙지여부 확인", "속지여부 확인", "참석자 확인"]
 };
-*/
 
 const normalizePreviewLabel = (value: string): string => {
   return value
@@ -263,9 +263,9 @@ const detectPreviewSectionIndex = (line: string): number => {
   }
 
   return SCRIPT_TEMPLATE.findIndex((section) => {
-    const normalizedTitle = normalizePreviewLabel(section.title);
+    const candidates = [section.title, ...(PREVIEW_SECTION_ALIAS_MAP[section.title] ?? [])];
 
-    return normalizedLine === normalizedTitle;
+    return candidates.some((candidate) => normalizedLine === normalizePreviewLabel(candidate));
   });
 };
 

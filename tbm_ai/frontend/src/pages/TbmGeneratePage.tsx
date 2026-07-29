@@ -196,14 +196,14 @@ const selectionPalettes = [
 ];
 
 const DEFAULT_AUTO_PROMPT = `TBM 리더 멘트를 아래 9단계 현장 진행 형식으로 작성합니다.
-### 작업장소 이동(인사/체조)
-### 건강상태 확인
-### 작업내용 공유
-### 핵심 위험요인
-### 안전조치 확인
-### 유사 사고사례
-### 의견 및 질의응답
-### 비상대피요령
+### 인사
+### 건강
+### 작업
+### 위험
+### 조치
+### 사례
+### 의견
+### 비상
 ### 지적확인
 TBM 대본 어투는 아래 권장 표현을 기준으로 작성합니다.
 - 인사: "안녕하십니까?"
@@ -212,11 +212,11 @@ TBM 대본 어투는 아래 권장 표현을 기준으로 작성합니다.
 - 마무리: "안전하게 작업하시기 바랍니다."
 보고서체 표현인 "있음", "한다", "있다", "된다", "이다"로 문장을 끝내지 말고, 반드시 현장 리더가 말하는 존댓말인 "있습니다", "합니다", "됩니다", "입니다"로 작성합니다.
 실제 리더가 현장에서 구두로 진행하는 멘트 어투로 작성하고, 오늘 작업종류/작업장소/위험요인/보호구 정보를 반영합니다.
-"작업내용 공유" 단계는 오늘 작업장소, 작업종류, 작업순서를 간단히 공유합니다.
-"핵심 위험요인" 단계는 오늘 작업에서 가장 중요한 위험요인을 별도로 강조합니다.
-"안전조치 확인" 단계는 보호구, 작업허가, 통제구역, LOTO 등 필요한 조치를 확인합니다.
-"유사 사고사례" 단계는 오늘 작업과 유사한 사고사례와 교훈을 짧게 전달합니다.
-"의견 및 질의응답" 단계는 작업자가 의견이나 질문을 말할 수 있도록 진행합니다.
+"작업" 단계는 오늘 작업장소, 작업종류, 작업순서를 간단히 공유합니다.
+"위험" 단계는 오늘 작업에서 가장 중요한 위험요인을 별도로 강조합니다.
+"조치" 단계는 보호구, 작업허가, 통제구역, LOTO 등 필요한 조치를 확인합니다.
+"사례" 단계는 오늘 작업과 유사한 사고사례와 교훈을 짧게 전달합니다.
+"의견" 단계는 작업자가 의견이나 질문을 말할 수 있도록 진행합니다.
 "지적확인" 단계는 선창-후창 구호 형식을 포함하되, 감탄 구호는 넣지 않습니다.`;
 const INITIAL_PRESET: TbmPreset = {
   workType: "",
@@ -244,14 +244,14 @@ type ScriptTemplateItem = {
 };
 
 const SCRIPT_TEMPLATE: ScriptTemplateItem[] = [
-  { title: "작업장소 이동", subtitle: "(인사/체조)" },
-  { title: "건강상태 확인" },
-  { title: "작업내용 공유" },
-  { title: "핵심 위험요인" },
-  { title: "안전조치 확인" },
-  { title: "유사 사고사례" },
-  { title: "의견 및 질의응답" },
-  { title: "비상대피요령" },
+  { title: "인사" },
+  { title: "건강" },
+  { title: "작업" },
+  { title: "위험" },
+  { title: "조치" },
+  { title: "사례" },
+  { title: "의견" },
+  { title: "비상" },
   { title: "지적확인" }
 ];
 
@@ -268,34 +268,37 @@ const MINUTES_SECTION_LABELS = [
 ] as const;
 
 const SCRIPT_SECTION_ALIAS_MAP: Record<string, string[]> = {
-  "작업장소 이동": [
+  인사: [
     "1. 작업장소 이동",
     "1. 작업장소 이동(인사/체조)",
     "작업장소 이동(인사/체조)",
     "작업장소 이동 (인사/체조)",
+    "작업장소 이동",
     "인사",
     "1. 인사"
   ],
-  "건강상태 확인": ["2. 건강상태 확인", "건강", "2. 건강"],
-  "작업내용 공유": [
+  건강: ["2. 건강상태 확인", "건강상태 확인", "건강", "2. 건강"],
+  작업: [
     "3. 작업내용 공유",
     "작업내용",
     "3. 작업",
     "작업",
     "작업내용, 위험요인, 작업절차 확인"
   ],
-  "핵심 위험요인": ["4. 핵심 위험요인", "위험", "4. 위험", "잠재위험요인"],
-  "안전조치 확인": ["5. 안전조치 확인", "조치", "5. 조치", "보호구 착용상태 확인", "보호구", "PPE"],
-  "유사 사고사례": [
+  위험: ["4. 핵심 위험요인", "핵심 위험요인", "위험", "4. 위험", "잠재위험요인"],
+  조치: ["5. 안전조치 확인", "안전조치 확인", "조치", "5. 조치", "보호구 착용상태 확인", "보호구", "PPE"],
+  사례: [
     "6. 유사 사고사례",
     "유사 사고 사례",
+    "유사 사고사례",
     "사례",
     "6. 사례",
     "사고사례",
     "중점위험요인"
   ],
-  "의견 및 질의응답": [
+  의견: [
     "7. 의견 및 질의응답",
+    "의견 및 질의응답",
     "의견",
     "7. 의견",
     "질의응답",
@@ -303,7 +306,7 @@ const SCRIPT_SECTION_ALIAS_MAP: Record<string, string[]> = {
     "Q&A",
     "작업 후 종료 미팅"
   ],
-  비상대피요령: ["8. 비상대피요령", "비상대피", "비상 시 대피요령", "비상", "8. 비상", "대피"],
+  비상: ["8. 비상대피요령", "비상대피요령", "비상대피", "비상 시 대피요령", "비상", "8. 비상", "대피"],
   지적확인: ["9. 지적확인", "숙지여부 확인", "속지여부 확인", "참석자 확인"]
 };
 
@@ -454,28 +457,28 @@ const buildScriptSectionFallback = (title: string, preset: TbmPreset): string =>
   const workType = preset.workType || "해당 작업";
 
   switch (title) {
-    case "작업장소 이동": {
+    case "인사": {
       const datePart = formatWorkDateForGreetingFE(preset.workDate);
       const greeting = datePart
         ? `안녕하십니까? ${datePart} ${location} 아침 TBM을 시작하겠습니다.`
         : `안녕하십니까? ${location} 아침 TBM을 시작하겠습니다.`;
       return `${greeting}\n간단한 스트레칭으로 굳은 몸을 풀어 주시기 바랍니다.\n목 돌리기부터 시작하겠습니다. 어깨, 허리, 무릎, 손목 및 발목 순으로 크게 따라 해 주시기 바랍니다.`;
     }
-    case "건강상태 확인":
+    case "건강":
       return `체조 중 몸에 이상이 느껴지는 분 있으십니까? 어제 늦게까지 술을 드신 분은 없으십니까?\n열이 나거나 평소와 달리 몸 상태가 좋지 않은 분은 지금 말씀해 주시기 바랍니다.`;
-    case "작업내용 공유": {
+    case "작업": {
       const procedureSteps = pickWorkProcedureStepsFE(workType).join("\n");
       return `다음은 오늘 작업내용을 공유하겠습니다.\n오늘 작업은 ${location}에서 진행하는 ${workType} 작업입니다.\n작업순서는 다음과 같습니다.\n${procedureSteps}\n각 단계별 담당자와 신호체계를 확인하고, 변경사항이 있으면 즉시 공유해 주시기 바랍니다.`;
     }
-    case "핵심 위험요인":
+    case "위험":
       return `다음은 핵심 위험요인을 확인하겠습니다.\n오늘 작업의 핵심 위험요인은 협착, 추락, 화재 등 ${workType} 작업 중 발생할 수 있는 중대 위험입니다.\n위험징후가 보이면 즉시 작업을 멈추고 주변 작업자에게 알려 주시기 바랍니다.`;
-    case "안전조치 확인":
+    case "조치":
       return `다음은 안전조치 사항을 확인하겠습니다.\n작업허가서, 통제구역, 작업 전 점검 상태를 확인해 주시기 바랍니다.\n안전모, 안전화, 장갑 등 보호구를 모두 착용하셨습니까?\nLOTO, 소화기, 신호수 배치 등 해당 작업에 필요한 안전조치가 완료되었는지 다시 한 번 확인해 주시기 바랍니다.`;
-    case "유사 사고사례":
+    case "사례":
       return `유사 사고사례를 공유하겠습니다.\n유사한 ${workType} 작업에서 작업 전 확인이 부족해 협착, 추락, 화재 등의 사고가 발생한 사례가 있습니다.\n사고의 공통 원인은 위험요인 확인 부족과 안전조치 미준수였습니다.\n오늘 작업에서는 같은 실수가 반복되지 않도록 작업 전 확인과 상호 점검을 철저히 해 주시기 바랍니다.`;
-    case "의견 및 질의응답":
+    case "의견":
       return `다음은 의견 및 질의응답 시간입니다.\n오늘 작업내용, 위험요인, 안전조치 중 이해가 되지 않거나 추가로 확인할 사항이 있으면 말씀해 주시기 바랍니다.\n작업 중에도 의문사항이나 위험요인을 발견하면 즉시 반장에게 공유해 주시기 바랍니다.`;
-    case "비상대피요령":
+    case "비상":
       return `다음은 비상대피요령을 확인하겠습니다. 비상 대피로는 현장에 사전 지정된 비상계단을 이용해 주시기 바랍니다.\n밖으로 대피 후에는 지정된 비상집결지로 모여 주시기 바랍니다.\n그리고 현재 작업 위치 인근의 소화기 위치도 작업 전 반드시 확인해 주시기 바랍니다.\n작업 전 대피로와 집결지, 소화기 위치를 반드시 확인해 주시기 바랍니다.`;
     case "지적확인": {
       const chant = `${workType} 안전수칙 준수하겠습니다!`;
@@ -786,7 +789,7 @@ const normalizeScenarioSectionContent = (
   if (!content) return fallback;
   if (containsForeignArtifact(content)) return fallback;
 
-  if (title === "건강상태 확인") {
+  if (title === "건강") {
     const containsCoreMeaning = /건강|컨디션|음주|수면|두통|어지럼|이상.?증상|몸\s*상태|체조/i.test(
       content
     );
@@ -796,7 +799,7 @@ const normalizeScenarioSectionContent = (
     return content;
   }
 
-  if (title === "작업내용 공유") {
+  if (title === "작업") {
     // 특정 키워드 포함 여부보다는 최소 분량만 확인한다. 작업순서, 담당자, 작업범위 등
     // 표현 방식이 다양할 수 있어 내용 자체의 유무만 확인한다.
     if (content.replace(/\s+/g, "").length < 30) {
@@ -805,7 +808,7 @@ const normalizeScenarioSectionContent = (
     return content;
   }
 
-  if (title === "핵심 위험요인") {
+  if (title === "위험") {
     const containsCoreMeaning = /위험|협착|추락|화재|감전|질식|전도|낙하|끼임|중대/i.test(content);
     if (!containsCoreMeaning) {
       return fallback;
@@ -813,7 +816,7 @@ const normalizeScenarioSectionContent = (
     return content;
   }
 
-  if (title === "안전조치 확인") {
+  if (title === "조치") {
     const containsCoreMeaning =
       /안전조치|보호구|착용|안전모|안전화|장갑|보안경|마스크|loto|ppe|허가서|통제구역|소화기/i.test(
         content
@@ -824,7 +827,7 @@ const normalizeScenarioSectionContent = (
     return content;
   }
 
-  if (title === "유사 사고사례") {
+  if (title === "사례") {
     const containsCoreMeaning = /사고|사례|재해|교훈|원인|유사/i.test(content);
     if (!containsCoreMeaning) {
       return fallback;
@@ -832,7 +835,7 @@ const normalizeScenarioSectionContent = (
     return content;
   }
 
-  if (title === "의견 및 질의응답") {
+  if (title === "의견") {
     const containsCoreMeaning = /의견|질문|질의|응답|확인|말씀|공유/i.test(content);
     if (!containsCoreMeaning || content.replace(/\s+/g, "").length < 15) {
       return fallback;
@@ -840,7 +843,7 @@ const normalizeScenarioSectionContent = (
     return content;
   }
 
-  if (title === "비상대피요령") {
+  if (title === "비상") {
     const containsCoreMeaning = /비상|대피|집결|소화기|신고|보고|작업\s*중지/i.test(content);
     if (!containsCoreMeaning) {
       return fallback;
