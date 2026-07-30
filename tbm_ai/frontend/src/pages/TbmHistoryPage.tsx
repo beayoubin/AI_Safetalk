@@ -391,6 +391,7 @@ function TbmHistoryPage() {
   const [viewText, setViewText] = useState("");
 
   const [viewSections, setViewSections] = useState<PreviewSection[]>([]);
+  const [isEditingDraft, setIsEditingDraft] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [draftSaveMessage, setDraftSaveMessage] = useState("");
 
@@ -839,6 +840,7 @@ function TbmHistoryPage() {
     setViewTitle("");
     setViewText("");
     setViewSections([]);
+    setIsEditingDraft(false);
     setDraftSaveMessage("");
     setSignatureChecklistChecks({});
     setWorkerSignature("");
@@ -905,6 +907,12 @@ function TbmHistoryPage() {
       })
     );
 
+    setDraftSaveMessage("");
+  };
+
+  const handleCancelDraftEdit = () => {
+    setViewSections(buildPreviewSections(viewText));
+    setIsEditingDraft(false);
     setDraftSaveMessage("");
   };
 
@@ -1020,6 +1028,7 @@ function TbmHistoryPage() {
 
       setViewText(savedDraftText);
       setViewSections(buildPreviewSections(savedDraftText));
+      setIsEditingDraft(false);
       setDraftSaveMessage("수정 내용이 저장되었습니다.");
     } catch (error) {
       setDraftSaveMessage(
@@ -1887,7 +1896,8 @@ function TbmHistoryPage() {
                       textAlign: "center"
                     }}
                   >
-                    T.B.M 리더 멘트 (수정 가능)
+                    T.B.M 리더 멘트
+                    {isEditingDraft ? " (수정 중)" : ""}
                   </Box>
                 </Box>
 
@@ -2074,6 +2084,11 @@ function TbmHistoryPage() {
                             }
                             placeholder="AI 생성 멘트가 이 영역에 표시됩니다."
                             disabled={viewLoading || isSavingDraft}
+                            slotProps={{
+                              input: {
+                                readOnly: !isEditingDraft
+                              }
+                            }}
                             sx={{
                               width: "100%",
                               minWidth: 0,
@@ -2407,118 +2422,210 @@ function TbmHistoryPage() {
             sx={{
               display: "flex",
               alignItems: "center",
-
               gap: {
                 xs: 1,
                 sm: 1
               },
-
               flexShrink: 0
             }}
           >
-            <Button
-              onClick={() => setViewOpen(false)}
-              disabled={isSavingDraft}
-              sx={{
-                minWidth: {
-                  xs: 60,
-                  sm: 64
-                },
+            {!isEditingDraft ? (
+              <>
+                <Button
+                  onClick={() => setViewOpen(false)}
+                  disabled={isSavingDraft}
+                  sx={{
+                    minWidth: {
+                      xs: 60,
+                      sm: 64
+                    },
 
-                height: {
-                  xs: 40,
-                  sm: "auto"
-                },
+                    height: {
+                      xs: 40,
+                      sm: "auto"
+                    },
 
-                px: {
-                  xs: 1.5,
-                  sm: 1
-                },
+                    px: {
+                      xs: 1.5,
+                      sm: 1
+                    },
 
-                color: panelText,
+                    color: panelText,
 
-                fontSize: {
-                  xs: 14,
-                  sm: 14
-                },
+                    fontSize: {
+                      xs: 14,
+                      sm: 14
+                    },
 
-                fontWeight: {
-                  xs: 700,
-                  sm: 500
-                },
+                    fontWeight: {
+                      xs: 700,
+                      sm: 500
+                    },
 
-                borderRadius: {
-                  xs: 0,
-                  sm: 0
-                }
-              }}
-            >
-              닫기
-            </Button>
+                    borderRadius: 0
+                  }}
+                >
+                  닫기
+                </Button>
 
-            <Button
-              variant="contained"
-              onClick={() => void handleSaveDraft()}
-              disabled={
-                viewLoading ||
-                isSavingDraft ||
-                viewSections.length === 0
-              }
-              sx={{
-                minWidth: {
-                  xs: 76,
-                  sm: "auto"
-                },
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    setIsEditingDraft(true);
+                    setDraftSaveMessage("");
+                  }}
+                  disabled={
+                    viewLoading ||
+                    isSavingDraft ||
+                    viewSections.length === 0
+                  }
+                  sx={{
+                    minWidth: {
+                      xs: 76,
+                      sm: "auto"
+                    },
 
-                height: {
-                  xs: 40,
-                  sm: "auto"
-                },
+                    height: {
+                      xs: 40,
+                      sm: "auto"
+                    },
 
-                px: {
-                  xs: 1.5,
-                  sm: 2
-                },
+                    px: {
+                      xs: 1.5,
+                      sm: 2
+                    },
 
-                bgcolor: accentBlue,
-                color: "#ffffff",
+                    bgcolor: accentBlue,
+                    color: "#ffffff",
 
-                borderRadius: 0,
-                boxShadow: "none",
+                    borderRadius: 0,
+                    boxShadow: "none",
 
-                fontSize: {
-                  xs: 14,
-                  sm: 14
-                },
+                    fontSize: {
+                      xs: 14,
+                      sm: 14
+                    },
 
-                fontWeight: {
-                  xs: 700,
-                  sm: 500
-                },
+                    fontWeight: {
+                      xs: 700,
+                      sm: 500
+                    },
 
-                whiteSpace: "nowrap",
+                    whiteSpace: "nowrap",
 
-                "&:hover": {
-                  bgcolor: accentBlueHover,
-                  boxShadow: "none"
-                }
-              }}
-            >
-              {isSavingDraft ? (
-                <>
-                  <CircularProgress
-                    size={15}
-                    sx={{
-                      mr: 0.75,
-                      color: "#ffffff"
-                    }}
-                  />
-                  저장 중
-                </>
-              ) : (
-                "수정 저장"
-              )}
-            </Button>
+                    "&:hover": {
+                      bgcolor: accentBlueHover,
+                      boxShadow: "none"
+                    }
+                  }}
+                >
+                  수정하기
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={handleCancelDraftEdit}
+                  disabled={isSavingDraft}
+                  sx={{
+                    minWidth: {
+                      xs: 60,
+                      sm: 64
+                    },
+
+                    height: {
+                      xs: 40,
+                      sm: "auto"
+                    },
+
+                    px: {
+                      xs: 1.5,
+                      sm: 1
+                    },
+
+                    color: panelText,
+
+                    fontSize: {
+                      xs: 14,
+                      sm: 14
+                    },
+
+                    fontWeight: {
+                      xs: 700,
+                      sm: 500
+                    },
+
+                    borderRadius: 0
+                  }}
+                >
+                  취소
+                </Button>
+
+                <Button
+                  variant="contained"
+                  onClick={() => void handleSaveDraft()}
+                  disabled={
+                    viewLoading ||
+                    isSavingDraft ||
+                    viewSections.length === 0
+                  }
+                  sx={{
+                    minWidth: {
+                      xs: 76,
+                      sm: "auto"
+                    },
+
+                    height: {
+                      xs: 40,
+                      sm: "auto"
+                    },
+
+                    px: {
+                      xs: 1.5,
+                      sm: 2
+                    },
+
+                    bgcolor: accentBlue,
+                    color: "#ffffff",
+
+                    borderRadius: 0,
+                    boxShadow: "none",
+
+                    fontSize: {
+                      xs: 14,
+                      sm: 14
+                    },
+
+                    fontWeight: {
+                      xs: 700,
+                      sm: 500
+                    },
+
+                    whiteSpace: "nowrap",
+
+                    "&:hover": {
+                      bgcolor: accentBlueHover,
+                      boxShadow: "none"
+                    }
+                  }}
+                >
+                  {isSavingDraft ? (
+                    <>
+                      <CircularProgress
+                        size={15}
+                        sx={{
+                          mr: 0.75,
+                          color: "#ffffff"
+                        }}
+                      />
+                      저장 중
+                    </>
+                  ) : (
+                    "수정 저장"
+                  )}
+                </Button>
+              </>
+            )}
           </Box>
         </DialogActions>
       </Dialog>
