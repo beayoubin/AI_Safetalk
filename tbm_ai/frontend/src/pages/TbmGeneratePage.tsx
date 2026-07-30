@@ -1441,12 +1441,9 @@ function TbmGeneratePage() {
   const workTypeOptions = workCategoryOptions.flatMap((category) => category.workTypes);
   const selectedWorkTypeCode =
     workTypeOptions.find((workType) => workType.name === preset.workType)?.code ?? "";
-  const followUpQuestions = buildFollowUpQuestions(
-    preset,
-    selectedWorkCategoryCode,
-    selectedWorkTypeCode,
-    tbmSurveyConfig
-  );
+  const followUpQuestions = selectedWorkTypeCode
+    ? buildFollowUpQuestions(preset, selectedWorkCategoryCode, selectedWorkTypeCode, tbmSurveyConfig)
+    : [];
   const followUpReady =
     presetReady &&
     followUpQuestions.length > 0 &&
