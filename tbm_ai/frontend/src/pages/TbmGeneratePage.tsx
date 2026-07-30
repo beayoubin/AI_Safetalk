@@ -16,6 +16,7 @@ import Paper from "@mui/material/Paper";
 import Select from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import useMediaQuery from "@mui/material/useMediaQuery";
 
 type TbmPreset = {
   workType: string;
@@ -452,6 +453,12 @@ const buildFollowUpQuestions = (
     };
   });
 
+const getShiftLabelFE = (shift: string): string => {
+  if (shift === "야간") return "야간";
+  if (shift === "주간") return "주간";
+  return shift || "작업 전";
+};
+
 const buildScriptSectionFallback = (title: string, preset: TbmPreset): string => {
   const location = preset.location || "현장";
   const workType = preset.workType || "해당 작업";
@@ -459,10 +466,15 @@ const buildScriptSectionFallback = (title: string, preset: TbmPreset): string =>
   switch (title) {
     case "인사": {
       const datePart = formatWorkDateForGreetingFE(preset.workDate);
+      const shiftLabel = getShiftLabelFE(preset.shift);
+
       const greeting = datePart
-        ? `안녕하십니까? ${datePart} ${location} 아침 TBM을 시작하겠습니다.`
-        : `안녕하십니까? ${location} 아침 TBM을 시작하겠습니다.`;
-      return `${greeting}\n간단한 스트레칭으로 굳은 몸을 풀어 주시기 바랍니다.\n목 돌리기부터 시작하겠습니다. 어깨, 허리, 무릎, 손목 및 발목 순으로 크게 따라 해 주시기 바랍니다.`;
+        ? `안녕하십니까? ${datePart} ${location} ${shiftLabel} TBM을 시작하겠습니다.`
+        : `안녕하십니까? ${location} ${shiftLabel} TBM을 시작하겠습니다.`;
+
+      return `${greeting}
+    간단한 스트레칭으로 굳은 몸을 풀어 주시기 바랍니다.
+    목 돌리기부터 시작하겠습니다. 어깨, 허리, 무릎, 손목 및 발목 순으로 크게 따라 해 주시기 바랍니다.`;
     }
     case "건강":
       return `체조 중 몸에 이상이 느껴지는 분 있으십니까? 어제 늦게까지 술을 드신 분은 없으십니까?\n열이 나거나 평소와 달리 몸 상태가 좋지 않은 분은 지금 말씀해 주시기 바랍니다.`;
@@ -1033,7 +1045,10 @@ function SelectionChipRow({
         flexWrap: "wrap",
         gap: 0.9,
         overflowX: "visible",
-        pb: 0.25
+        pb: 0.25,
+        "@media (max-width: 425px)": {
+          gap: 0.7
+        }
       }}
     >
       {options.map((item, index) => {
@@ -1074,16 +1089,24 @@ function SelectionChipRow({
                 : "0 4px 12px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
               transition: "all 0.18s ease",
               flexShrink: 0,
+
               "&:hover": {
                 borderColor: palette.solid,
                 boxShadow: `0 8px 18px ${palette.shadow}`,
                 transform: "translateY(-1px)"
               },
+
               fontSize: 14,
               fontWeight: checked ? 700 : 600,
               color: checked ? "#ffffff" : panelText,
               whiteSpace: "nowrap",
-              textTransform: "none"
+              textTransform: "none",
+
+              "@media (max-width: 425px)": {
+                px: 1.05,
+                py: 0.7,
+                fontSize: 13
+              }
             }}
           >
             {item}
@@ -1111,21 +1134,134 @@ function SurveyFieldHeader({ index, label }: SurveyFieldHeaderProps) {
   );
 }
 
+type MobileSurveyAccordionCardProps = {
+  index: number;
+  label: string;
+  valueSummary?: string;
+  completed?: boolean;
+  isCompactMobile: boolean;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+};
+
+function MobileSurveyAccordionCard({
+  index,
+  label,
+  valueSummary,
+  completed = false,
+  isCompactMobile,
+  open,
+  onToggle,
+  children
+}: MobileSurveyAccordionCardProps) {
+  // 태블릿·모니터에서는 기존 카드 구조를 그대로 사용한다.
+  if (!isCompactMobile) {
+    return (
+      <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
+        <SurveyFieldHeader index={index} label={label} />
+        {children}
+      </Paper>
+    );
+  }
+
+  // 425px 이하 모바일에서만 접기/펼치기 형태로 표시한다.
+  return (
+    <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
+      <Box
+        component="button"
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        sx={{
+          width: "100%",
+          border: 0,
+          p: 0,
+          m: 0,
+          bgcolor: "transparent",
+          color: "inherit",
+          cursor: "pointer",
+          textAlign: "left",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography
+            sx={{
+              fontSize: 13.5,
+              fontWeight: 800,
+              color: panelText,
+              letterSpacing: "-0.01em"
+            }}
+          >
+            {index}. {label}
+          </Typography>
+
+          {!open && completed && valueSummary ? (
+            <Typography
+              sx={{
+                mt: 0.45,
+                fontSize: 13.5,
+                fontWeight: 700,
+                color: "#111111",
+                lineHeight: 1.4,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap"
+              }}
+            >
+              {valueSummary}
+            </Typography>
+          ) : null}
+        </Box>
+
+        <Typography
+          component="span"
+          sx={{
+            flexShrink: 0,
+            fontSize: 18,
+            lineHeight: 1,
+            color: mutedText
+          }}
+        >
+          {open ? "⌃" : "⌄"}
+        </Typography>
+      </Box>
+
+      {open ? <Box sx={{ mt: 1 }}>{children}</Box> : null}
+    </Paper>
+  );
+}
+
 const surveyFieldPaperSx = {
   borderRadius: cardRadius,
   border: `1px solid ${cardGradientBorder}`,
   background: cardGradient,
-  boxShadow: "0 12px 24px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
-  p: 1.5
+  boxShadow:
+    "0 12px 24px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
+  p: 1.5,
+
+  "@media (max-width: 425px)": {
+    p: 1.15
+  }
 };
 
 const getSurveyFieldPaperSx = (index: number) => {
   const accent = surveyCardAccents[(index - 1) % surveyCardAccents.length];
   const tint = surveyCardTints[(index - 1) % surveyCardTints.length];
+
   return {
     ...surveyFieldPaperSx,
     borderLeft: `6px solid ${accent}`,
-    background: `linear-gradient(135deg, #ffffff 0%, ${tint} 100%)`
+    background: `linear-gradient(135deg, #ffffff 0%, ${tint} 100%)`,
+
+    "@media (max-width: 425px)": {
+      ...surveyFieldPaperSx["@media (max-width: 425px)"],
+      borderLeft: `4px solid ${accent}`
+    }
   };
 };
 
@@ -1136,6 +1272,9 @@ type SurveyCheckboxFieldProps = {
   onChange: (value: string) => void;
   options: string[];
   emptyMessage?: string;
+  isCompactMobile: boolean;
+  open: boolean;
+  onToggle: () => void;
 };
 
 function SurveyCheckboxField({
@@ -1144,18 +1283,28 @@ function SurveyCheckboxField({
   value,
   onChange,
   options,
-  emptyMessage
+  emptyMessage,
+  isCompactMobile,
+  open,
+  onToggle
 }: SurveyCheckboxFieldProps) {
   return (
-    <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
-      <SurveyFieldHeader index={index} label={label} />
+    <MobileSurveyAccordionCard
+      index={index}
+      label={label}
+      valueSummary={value}
+      completed={value.trim() !== ""}
+      isCompactMobile={isCompactMobile}
+      open={open}
+      onToggle={onToggle}
+    >
       <SelectionChipRow
         options={options}
         value={value}
         onChange={onChange}
         emptyMessage={emptyMessage}
       />
-    </Paper>
+    </MobileSurveyAccordionCard>
   );
 }
 
@@ -1167,6 +1316,9 @@ type WorkTypeCategoryFieldProps = {
   onCategoryChange: (categoryCode: string) => void;
   selectedWorkType: string;
   onWorkTypeChange: (value: string) => void;
+  isCompactMobile: boolean;
+  open: boolean;
+  onToggle: () => void;
 };
 
 // 작업종류는 대분류(설비/전기/화기/운반/특수 작업)를 먼저 고르면 그 아래 세부 작업종류가 나타나는
@@ -1178,14 +1330,28 @@ function WorkTypeCategoryField({
   selectedCategoryCode,
   onCategoryChange,
   selectedWorkType,
-  onWorkTypeChange
+  onWorkTypeChange,
+  isCompactMobile,
+  open,
+  onToggle
 }: WorkTypeCategoryFieldProps) {
   const selectedCategory = categories.find((category) => category.code === selectedCategoryCode);
   const subOptions = selectedCategory?.workTypes.map((workType) => workType.name) ?? [];
 
   return (
-    <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
-      <SurveyFieldHeader index={index} label={label} />
+    <MobileSurveyAccordionCard
+      index={index}
+      label={label}
+      valueSummary={
+        selectedCategory && selectedWorkType
+          ? `${selectedCategory.name} · ${selectedWorkType}`
+          : selectedCategory?.name ?? ""
+      }
+      completed={selectedWorkType.trim() !== ""}
+      isCompactMobile={isCompactMobile}
+      open={open}
+      onToggle={onToggle}
+    >
       <SelectionChipRow
         options={categories.map((category) => category.name)}
         value={selectedCategory?.name ?? ""}
@@ -1208,7 +1374,7 @@ function WorkTypeCategoryField({
           />
         </Box>
       ) : null}
-    </Paper>
+    </MobileSurveyAccordionCard>
   );
 }
 
@@ -1221,8 +1387,18 @@ function TbmGeneratePage() {
   const [siteOptions, setSiteOptions] = useState<SiteOption[]>([]);
 
   const [preset, setPreset] = useState<TbmPreset>(INITIAL_PRESET);
+  // 모바일(425px 이하)에서만 카드 접기 기능 사용
+  const isCompactMobile = useMediaQuery("(max-width:425px)");
+
+  const [openSurveyIndex, setOpenSurveyIndex] = useState(1);
+  const handleSurveyCardToggle = (index: number) => {
+    if (!isCompactMobile) return;
+
+    setOpenSurveyIndex((prev) => (prev === index ? 0 : index));
+  };
   const [additionalInputs, setAdditionalInputs] =
     useState<AdditionalTbmInputs>(INITIAL_ADDITIONAL_INPUTS);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedText, setGeneratedText] = useState("");
   const [currentHistoryId, setCurrentHistoryId] = useState<number | null>(null);
@@ -1968,50 +2144,94 @@ function TbmGeneratePage() {
     </Box>
   );
 
-  const renderFollowUpQuestionCard = (index: number, question: FollowUpQuestion) => (
-    <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
-      <SurveyFieldHeader index={index} label={question.label} />
-      <Typography sx={{ fontSize: 12, color: mutedText, mb: 0.8 }}>
-        {question.helperText}
-        {isMultiSelectQuestion(question.key) ? " 여러 개 선택할 수 있습니다." : ""}
-      </Typography>
-      <SelectionChipRow
-        options={question.options}
-        value={additionalInputs[question.key]}
-        multiple={isMultiSelectQuestion(question.key)}
-        onChange={(value) =>
-          setAdditionalInputs((prev) => ({
-            ...prev,
-            [question.key]: value
-          }))
-        }
-      />
-    </Paper>
-  );
+  const renderFollowUpQuestionCard = (
+    index: number,
+    question: FollowUpQuestion
+  ) => {
+    const multiple = isMultiSelectQuestion(question.key);
+    const value = additionalInputs[question.key];
+
+    return (
+      <MobileSurveyAccordionCard
+        index={index}
+        label={question.label}
+        valueSummary={value}
+        completed={value.trim() !== ""}
+        isCompactMobile={isCompactMobile}
+        open={openSurveyIndex === index}
+        onToggle={() => handleSurveyCardToggle(index)}
+      >
+        <Typography sx={{ fontSize: 12, color: mutedText, mb: 0.8 }}>
+          {question.helperText}
+          {multiple ? " 여러 개 선택할 수 있습니다." : ""}
+        </Typography>
+
+        <SelectionChipRow
+          options={question.options}
+          value={value}
+          multiple={multiple}
+          onChange={(nextValue) => {
+            setAdditionalInputs((prev) => ({
+              ...prev,
+              [question.key]: nextValue
+            }));
+          }}
+        />
+      </MobileSurveyAccordionCard>
+    );
+  };
 
   const renderSpecialNotesCard = (index: number) => (
     <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
-      <Typography sx={{ fontSize: 13, fontWeight: 700, color: panelText, mb: 0.75 }}>
+      <Typography
+        sx={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: panelText,
+          mb: 0.75
+        }}
+      >
         {index}. 특이사항
       </Typography>
       <Typography sx={{ fontSize: 12, color: mutedText, mb: 0.8 }}>
         현장 특이사항, 추가 위험요인, 전달사항이 있으면 작성해 주세요. 작성하지 않아도 TBM
         생성이 가능합니다.
       </Typography>
+
       <TextField
         size="small"
         fullWidth
         multiline
         minRows={3}
         value={additionalInputs.specialNotes}
+        onFocus={() => {
+          if (isCompactMobile) {
+            setOpenSurveyIndex(0);
+          }
+        }}
         onChange={(event) =>
           setAdditionalInputs((prev) => ({
             ...prev,
             specialNotes: event.target.value
           }))
         }
-        placeholder="예: 주변 동시작업, 통행자 이동, 현장 변경사항, 추가 전달사항 등"
-        sx={darkInputSx}
+        placeholder="예: 작업구역 주변에 타 공정 작업자가 함께 작업 중이며, 자재 적치로 이동통로가 좁아져 있습니다."
+        sx={{
+          ...darkInputSx,
+
+          "@media (max-width: 425px)": {
+            "& .MuiInputBase-input": {
+              fontSize: 13
+            },
+
+            "& .MuiInputBase-input::placeholder": {
+              fontSize: 12,
+              lineHeight: 1.5,
+              color: inputPlaceholder,
+              opacity: 1
+            }
+          }
+        }}
       />
     </Paper>
   );
@@ -2039,12 +2259,44 @@ function TbmGeneratePage() {
         }}
       >
         <Typography
-          sx={{ fontSize: 30, fontWeight: 900, color: panelText, mb: 0.5, textAlign: "center" }}
+          sx={{
+            fontSize: 30,
+            fontWeight: 900,
+            color: panelText,
+            mb: 0.5,
+            textAlign: "center",
+
+            "@media (max-width: 425px)": {
+              fontSize: 24,
+              lineHeight: 1.25,
+              mb: 0.7
+            }
+          }}
         >
           AI 세이프톡
         </Typography>
-        <Typography sx={{ fontSize: 14, color: mutedText, mb: 2, textAlign: "center" }}>
-          작업 조건을 선택한 뒤, TBM 생성을 누르면 TBM이 생성됩니다.
+        <Typography
+          sx={{
+            fontSize: 14,
+            color: mutedText,
+            mb: 2,
+            textAlign: "center",
+
+            "@media (max-width: 425px)": {
+              fontSize: 13.5,
+              lineHeight: 1.55,
+              px: 1
+            }
+          }}
+        > {isCompactMobile ? (
+          <>
+            작업 조건을 선택한 뒤,
+            <br />
+            TBM 생성을 누르면 TBM이 생성됩니다.
+          </>
+        ) : (
+          "작업 조건을 선택한 뒤, TBM 생성을 누르면 TBM이 생성됩니다."
+        )}
         </Typography>
 
         {errorMessage ? (
@@ -2098,52 +2350,91 @@ function TbmGeneratePage() {
                     return { ...prev, workType: value, permitType: nextPermitType };
                   });
                 }}
+                isCompactMobile={isCompactMobile}
+                open={openSurveyIndex === 1}
+                onToggle={() => handleSurveyCardToggle(1)}
               />
 
               <SurveyCheckboxField
                 index={2}
                 label="위험등급"
                 value={preset.risk}
-                onChange={(value) => setPreset((prev) => ({ ...prev, risk: value }))}
+                onChange={(value) => {
+                  setPreset((prev) => ({
+                    ...prev,
+                    risk: value
+                  }));
+                }}
                 options={riskOptions}
+                isCompactMobile={isCompactMobile}
+                open={openSurveyIndex === 2}
+                onToggle={() => handleSurveyCardToggle(2)}
               />
 
               <SurveyCheckboxField
                 index={3}
                 label="작업시간"
                 value={preset.shift}
-                onChange={(value) => setPreset((prev) => ({ ...prev, shift: value }))}
+                onChange={(value) => {
+                  setPreset((prev) => ({
+                    ...prev,
+                    shift: value
+                  }));
+                }}
                 options={workShiftOptions}
+                isCompactMobile={isCompactMobile}
+                open={openSurveyIndex === 3}
+                onToggle={() => handleSurveyCardToggle(3)}
               />
 
-              <Paper elevation={0} sx={getSurveyFieldPaperSx(4)}>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: panelText, mb: 0.75 }}>
-                  4. 작업일자
-                </Typography>
+              <MobileSurveyAccordionCard
+                index={4}
+                label="작업일자"
+                valueSummary={preset.workDate}
+                completed={preset.workDate.trim() !== ""}
+                isCompactMobile={isCompactMobile}
+                open={openSurveyIndex === 4}
+                onToggle={() => handleSurveyCardToggle(4)}
+              >
                 <TextField
                   size="small"
                   type="date"
                   value={preset.workDate}
-                  onChange={(event) =>
-                    setPreset((prev) => ({ ...prev, workDate: event.target.value }))
-                  }
+                  onChange={(event) => {
+                    const value = event.target.value;
+
+                    setPreset((prev) => ({
+                      ...prev,
+                      workDate: value
+                    }));
+                  }}
                   fullWidth
                   sx={darkInputSx}
                 />
-              </Paper>
+              </MobileSurveyAccordionCard>
 
-              <Paper elevation={0} sx={getSurveyFieldPaperSx(5)}>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: panelText, mb: 0.75 }}>
-                  5. 작업장소
-                </Typography>
+              <MobileSurveyAccordionCard
+                index={5}
+                label="작업장소"
+                valueSummary={preset.location}
+                completed={preset.location.trim() !== ""}
+                isCompactMobile={isCompactMobile}
+                open={openSurveyIndex === 5}
+                onToggle={() => handleSurveyCardToggle(5)}
+              >
                 <Box sx={{ display: "flex", gap: 1, flexWrap: { xs: "wrap", sm: "nowrap" } }}>
                   <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
                     <Select
                       displayEmpty
                       value={preset.location}
-                      onChange={(event) =>
-                        setPreset((prev) => ({ ...prev, location: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        const value = event.target.value;
+
+                        setPreset((prev) => ({
+                          ...prev,
+                          location: value
+                        }));
+                      }}
                       sx={locationSelectSx}
                       MenuProps={{
                         slotProps: {
@@ -2204,7 +2495,7 @@ function TbmGeneratePage() {
                     장소 추가
                   </Button>
                 </Box>
-              </Paper>
+              </MobileSurveyAccordionCard>
 
               {followUpQuestions.map((question, index) =>
                 renderFollowUpQuestionCard(index + 6, question)

@@ -339,6 +339,32 @@ const buildPpeChecklistSummary = (ppeContext: string): string => {
     : "- [ ] PPE 착용 확인 (작업유형별 세부 규정 미등록, 기본 보호구 기준 적용)";
 };
 
+const buildSelectedPpeChecklistSummary = (
+  input: GenerateTbmInput,
+  ppeContext: string
+): string => {
+  const selectedPpe =
+    getOptionValue(input.options, "개인보호구(PPE)") ||
+    getOptionValue(input.options, "필수 보호구/자재");
+
+  if (!selectedPpe) {
+    return buildPpeChecklistSummary(ppeContext);
+  }
+
+  const items = selectedPpe
+    .split(/[,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (items.length === 0) {
+    return buildPpeChecklistSummary(ppeContext);
+  }
+
+  return items
+    .map((item) => `- [ ] ${item} 착용 확인`)
+    .join("\n");
+};
+
 // ===== 9단계 리더 멘트(T.B.M 리더 멘트) 구성 =====
 // 현장에서 실제로 쓰는 리더 진행 멘트 양식을 그대로 따르며, 소규모 로컬 LLM의 자유생성 문장이
 // 반복적으로 맥락에 안 맞는 문구를 만들어내는 문제를 근본적으로 없애기 위해 실제 조회된 데이터
@@ -353,25 +379,37 @@ const formatWorkDateForGreeting = (workDate: string): string | null => {
   return `${parsed.getMonth() + 1}월 ${parsed.getDate()}일 ${weekday}`;
 };
 
+const getShiftLabel = (shift: string): string => {
+  if (shift === "야간") return "야간";
+  if (shift === "주간") return "주간";
+  return shift || "작업 전";
+};
+
 const buildKickoffSectionBody = (input: GenerateTbmInput): string => {
   const location = input.preset.location || "현장";
   const datePart = formatWorkDateForGreeting(input.preset.workDate);
+  const shiftLabel = getShiftLabel(input.preset.shift);
+
   const workerCount = getOptionValue(input.options, "작업인원");
   const supervisorName = getOptionValue(input.options, "작업책임자");
+
   const greeting = datePart
-    ? `안녕하십니까? ${datePart} ${location} 아침 TBM을 시작하겠습니다.`
-    : `안녕하십니까? ${location} 아침 TBM을 시작하겠습니다.`;
+    ? `안녕하십니까? ${datePart} ${location} ${shiftLabel} TBM을 시작하겠습니다.`
+    : `안녕하십니까? ${location} ${shiftLabel} TBM을 시작하겠습니다.`;
 
   const lines = [
     greeting,
     "간단한 스트레칭으로 굳은 몸을 풀어 주시기 바랍니다.",
     "목 돌리기부터 시작하겠습니다. 어깨, 허리, 무릎, 손목 및 발목 순으로 크게 따라 해 주시기 바랍니다."
   ];
+
   if (workerCount || supervisorName) {
     lines.push(
-      `오늘 작업 투입 정보는${workerCount ? ` 작업인원 ${workerCount}` : ""}${supervisorName ? `, 작업책임자 ${supervisorName}` : ""}입니다.`
+      `오늘 작업 투입 정보는${workerCount ? ` 작업인원 ${workerCount}` : ""}${supervisorName ? `, 작업책임자 ${supervisorName}` : ""
+      }입니다.`
     );
   }
+
   return lines.join("\n");
 };
 
@@ -404,29 +442,36 @@ const buildHealthCheckSectionBody = (weatherContext: string): string => {
   return lines.join("\n");
 };
 
-const buildPpeCheckSectionBody = (input: GenerateTbmInput, ppeContext: string): string => {
-  const requiredPpe = getOptionValue(input.options, "필수 보호구/자재");
+const buildPpeCheckSectionBody = (
+  input: GenerateTbmInput,
+  ppeContext: string
+): string => {
+  const selectedPpe = getOptionValue(input.options, "개인보호구(PPE)");
+
   const lines = [
     "다음은 보호구 착용 상태를 확인하겠습니다. 두 명씩 짝을 맞추어 서 주시기 바랍니다.",
     "앞에 계신 동료분의 보호구 착용 상태를 확인해 주시기 바랍니다."
   ];
 
-  const requiredLine = ppeContext.split("\n").find((line) => line.startsWith("필수 보호구:"));
-  if (requiredLine) {
-    // 리더가 실제로 구두로 읽는 문장이라 "(WT008 표준 보호구)" 같은 내부 사유/코드 표기는 제거하고
-    // 보호구 이름만 나열한다.
-    const items = requiredLine
-      .replace("필수 보호구:", "")
-      .replace(/\s*\([^()]*\)/g, "")
-      .trim();
+  if (selectedPpe) {
     lines.push(
-      `오늘 작업에는 ${items} 착용이 필수입니다. 빠짐없이 착용하셨습니까? 다시 한 번 확인해 주시기 바랍니다.`
+      `오늘 작업에는 ${selectedPpe} 착용이 필요합니다. 빠짐없이 착용하셨습니까? 다시 한 번 확인해 주시기 바랍니다.`
     );
-  }
-  if (requiredPpe) {
-    lines.push(
-      `현장 추가 입력 보호구와 준비물은 ${requiredPpe}입니다. 작업 전 누락 여부를 확인해 주시기 바랍니다.`
-    );
+  } else {
+    const requiredLine = ppeContext
+      .split("\n")
+      .find((line) => line.startsWith("필수 보호구:"));
+
+    if (requiredLine) {
+      const items = requiredLine
+        .replace("필수 보호구:", "")
+        .replace(/\s*\([^()]*\)/g, "")
+        .trim();
+
+      lines.push(
+        `오늘 작업에는 ${items} 착용이 필요합니다. 빠짐없이 착용하셨습니까? 다시 한 번 확인해 주시기 바랍니다.`
+      );
+    }
   }
 
   return lines.join("\n");
@@ -492,12 +537,14 @@ const toPoliteControlSentence = (value: string): string => {
 
 const normalizeControlListTone = (value: string): string => {
   const parts = value
-    .split(/[;；]/)
+    .split(/[,，;；]/)
     .map((item) => item.trim())
     .filter(Boolean);
+
   if (parts.length <= 1) {
-    return value;
+    return toPoliteControlSentence(value);
   }
+
   return parts.map(toPoliteControlSentence).filter(Boolean).join(" ");
 };
 
@@ -596,7 +643,13 @@ const WORK_PROCEDURE_STEPS_BY_CATEGORY: Record<string, string[]> = {
     "② 작업반경 내 위험요인을 제거하고 보호구 착용상태를 상호 점검합니다.",
     "③ 단계별 작업을 순서대로 진행하며 이상징후 발생 시 즉시 작업을 중지하고 보고합니다.",
     "④ 작업 종료 후 잔존 위험요인을 재점검하고 정리 상태를 확인한 뒤 철수합니다."
-  ]
+  ],
+  CAT06: [
+    "① 밀폐공간 출입 전 산소농도와 유해가스 농도를 측정합니다.",
+    "② 송풍기 등 환기설비를 가동하여 내부를 충분히 환기합니다.",
+    "③ 외부 감시인을 배치하고 출입자 명부와 비상연락체계를 확인합니다.",
+    "④ 구조장비와 보호구 상태를 확인한 후 작업하고, 종료 후 작업인원과 장비를 확인한 뒤 철수합니다."
+  ],
 };
 
 const DEFAULT_WORK_PROCEDURE_STEPS = WORK_PROCEDURE_STEPS_BY_CATEGORY.CAT01;
@@ -610,43 +663,161 @@ const buildWorkShareSectionBody = (
 ): string => {
   const detailedWork = getOptionValue(input.options, "세부 작업내용");
   const equipment = getOptionValue(input.options, "주요 장비/공구");
-  const task = detailedWork || pickSampleTask(workContent.sampleTasks, workContent.workType);
+
+  const safetyMeasure =
+    getOptionValue(input.options, "필수 안전조치") ||
+    getOptionValue(input.options, "안전조치/작업중지 기준");
+
+  const task =
+    detailedWork ||
+    pickSampleTask(workContent.sampleTasks, workContent.workType);
+
   const location = input.preset.location || "현장";
+
   const lines = [
     "다음은 오늘 작업내용을 공유하겠습니다.",
     `오늘 작업내용은 ${location}에서 진행하는 ${task} 작업입니다.`
   ];
+
   if (equipment) {
-    lines.push(`사용 장비와 공구는 ${equipment}입니다. 사용 전 점검상태를 확인해 주시기 바랍니다.`);
+    lines.push(
+      `사용 장비와 공구는 ${equipment}입니다. 사용 전 점검상태를 확인해 주시기 바랍니다.`
+    );
   }
-  lines.push("작업절차는 다음과 같습니다.", ...pickWorkProcedureSteps(workContent.categoryCode));
-  lines.push("각 단계별 담당자와 신호체계를 확인하고, 변경사항이 있으면 즉시 공유해 주시기 바랍니다.");
+
+  if (safetyMeasure) {
+    lines.push(
+      `작업 시작 전 필수 확인사항은 ${safetyMeasure}입니다.`
+    );
+  }
+
+  lines.push(
+    "작업절차는 다음과 같습니다.",
+    ...pickWorkProcedureSteps(workContent.categoryCode)
+  );
+
+  lines.push(
+    "각 단계별 담당자와 신호체계를 확인하고, 변경사항이 있으면 즉시 공유해 주시기 바랍니다."
+  );
 
   return lines.join("\n");
 };
 
-const buildCoreRiskSectionBody = (input: GenerateTbmInput, incidentContext: string): string => {
-  const siteHazards = getOptionValue(input.options, "현장 특이사항/추가 위험요인");
-  const highlights = extractIncidentHighlights(incidentContext, 2);
-  const [primaryHighlight, ...restHighlights] = highlights;
+type HazardControlRow = {
+  hazard_type: string;
+  accident_type: string;
+  standard_controls: string | null;
+};
+
+const HAZARD_NAME_ALIASES: Record<string, string[]> = {
+  "유해가스": ["중독", "질식"],
+  "협착·끼임": ["협착", "끼임"],
+  "아크·화상": ["아크플래시", "화상"],
+  "단락·합선": ["감전", "화재"],
+  "협착·낙하": ["협착", "낙하"],
+  "불티 비산": ["비래", "화재"],
+  "가연물 착화": ["화재"],
+  "가스 누출": ["화학물질누출", "중독"],
+  "고온부 접촉": ["화상"],
+  "부품·공구 낙하": ["낙하"],
+  "누유·누출": ["화학물질누출"],
+  "회전체 접촉": ["끼임", "협착"],
+  "불시 기동": ["끼임", "협착"],
+  "잔류에너지": ["감전", "협착"],
+  "오결선": ["감전", "화재"],
+  "불시 통전": ["감전"]
+};
+
+const findHazardControlsByName = async (
+  hazardName: string
+): Promise<string[]> => {
+  try {
+    const searchNames =
+      HAZARD_NAME_ALIASES[hazardName] ?? [hazardName];
+
+    const placeholders = searchNames.map(() => "?").join(", ");
+
+    const [rows] = await dbPool.query(
+      `
+        SELECT
+          hazard_type,
+          accident_type,
+          standard_controls
+        FROM code_hazard
+        WHERE active_yn = 'Y'
+          AND (
+            hazard_type IN (${placeholders})
+            OR accident_type IN (${placeholders})
+          )
+        ORDER BY hazard_code
+      `,
+      [...searchNames, ...searchNames]
+    );
+
+    return (rows as HazardControlRow[])
+      .map((row) => row.standard_controls?.trim())
+      .filter((control): control is string => Boolean(control));
+  } catch {
+    return [];
+  }
+};
+
+const buildCoreRiskSectionBody = async (
+  input: GenerateTbmInput,
+  incidentContext: string
+): Promise<string> => {
+  const selectedHazards =
+    getOptionValue(input.options, "주요 위험요인") ||
+    getOptionValue(input.options, "현장 특이사항/추가 위험요인");
 
   const lines = ["다음은 오늘 작업의 핵심 위험요인을 확인하겠습니다."];
 
-  if (primaryHighlight) {
-    lines.push(`- ${formatIncidentHighlight(primaryHighlight)}`);
-  }
-  restHighlights.forEach((item) => {
-    lines.push(`- ${formatIncidentHighlight(item)}`);
-  });
-  if (highlights.length === 0) {
+  if (selectedHazards) {
+    const hazardItems = selectedHazards
+      .split(/[,，/|]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
     lines.push(
-      "- 협착, 추락, 화재 등 해당 작업에서 발생할 수 있는 기본 위험요인에 유의해 주시기 바랍니다."
+      `오늘의 주요 위험요인은 ${hazardItems.join(", ")}입니다.`
     );
+
+    for (const hazard of hazardItems) {
+      const controls = await findHazardControlsByName(hazard);
+
+      if (controls.length > 0) {
+        const combinedControls = [...new Set(controls)]
+          .join(", ");
+
+        lines.push(
+          `${hazard}: ${normalizeControlListTone(combinedControls)}`
+        );
+      } else {
+        lines.push(
+          `${hazard}: 해당 위험요인의 발생 구간과 안전조치를 작업 전에 확인해 주시기 바랍니다.`
+        );
+      }
+    }
+  } else {
+    const highlights = extractIncidentHighlights(
+      incidentContext,
+      2
+    );
+
+    if (highlights.length > 0) {
+      highlights.forEach((item) => {
+        lines.push(`- ${formatIncidentHighlight(item)}`);
+      });
+    } else {
+      lines.push(
+        "작업 전 현장의 주요 위험요인을 확인해 주시기 바랍니다."
+      );
+    }
   }
-  if (siteHazards) {
-    lines.push(`- 현장 추가 위험요인: ${siteHazards}`);
-  }
-  lines.push("위험징후가 보이면 즉시 작업을 멈추고 주변 작업자에게 알려 주시기 바랍니다.");
+
+  lines.push(
+    "위험징후가 보이면 즉시 작업을 멈추고 주변 작업자에게 알려 주시기 바랍니다."
+  );
 
   return lines.join("\n");
 };
@@ -655,12 +826,21 @@ const buildSafetyActionSectionBody = (
   input: GenerateTbmInput,
   ppeContext: string
 ): string => {
-  const safetyMeasures = getOptionValue(input.options, "안전조치/작업중지 기준");
+  const safetyMeasures =
+    getOptionValue(input.options, "필수 안전조치") ||
+    getOptionValue(input.options, "안전조치/작업중지 기준");
+
   const lines = [buildPpeCheckSectionBody(input, ppeContext)];
+
   if (safetyMeasures) {
-    lines.push(`추가 안전조치 및 작업중지 기준은 다음과 같습니다. ${safetyMeasures}`);
+    lines.push(
+      `오늘의 필수 안전조치는 ${safetyMeasures}입니다. 작업 시작 전에 반드시 확인해 주시기 바랍니다.`
+    );
   }
-  lines.push("작업허가서, 통제구역, LOTO, 소화기 등 필요한 조치가 완료되었는지 다시 한 번 확인해 주시기 바랍니다.");
+
+  lines.push(
+    "작업구역과 이동통로의 상태를 확인하고, 이상이 발견되면 작업을 시작하지 말고 즉시 보고해 주시기 바랍니다."
+  );
 
   return lines.join("\n");
 };
@@ -704,13 +884,39 @@ const buildComprehensionCheckSectionBody = (
   incidentContext: string
 ): string => {
   const workType = input.preset.workType || "오늘";
-  const workTypeLabel = workType.endsWith("작업") ? workType : `${workType} 작업`;
-  const [primaryHighlight] = extractIncidentHighlights(incidentContext, 1);
-  const incidentTitle = primaryHighlight?.headline.replace(/\s*\([^)]*\)\s*/g, "").trim();
+  const workTypeLabel =
+    workType.endsWith("작업")
+      ? workType
+      : `${workType} 작업`;
+
+  const selectedHazards =
+    getOptionValue(input.options, "주요 위험요인") ||
+    getOptionValue(input.options, "현장 특이사항/추가 위험요인");
+
+  const [primaryHighlight] =
+    extractIncidentHighlights(incidentContext, 1);
+
+  const incidentTitle = primaryHighlight?.headline
+    .replace(/\s*\([^)]*\)\s*/g, "")
+    .trim();
+
   const chant = `${workType} 안전수칙 준수하겠습니다!`;
-  const reminder = incidentTitle
-    ? `${workTypeLabel}과 유사한 사고사례로 "${incidentTitle}" 사례가 있습니다. 같은 사고가 반복되지 않도록 위험징후와 안전대책을 다시 한 번 확인해 주시기 바랍니다.`
-    : `${workTypeLabel}의 핵심 위험요인을 다시 한 번 상기하고, 안전대책을 반드시 준수해 주시기 바랍니다.`;
+
+  let reminder: string;
+
+  if (selectedHazards) {
+    reminder =
+      `오늘 ${workTypeLabel}의 주요 위험요인은 "${selectedHazards}"입니다. ` +
+      "같은 위험이 사고로 이어지지 않도록 작업 전 안전조치와 작업중지 기준을 다시 확인해 주시기 바랍니다.";
+  } else if (incidentTitle) {
+    reminder =
+      `${workTypeLabel}과 유사한 사고사례로 "${incidentTitle}" 사례가 있습니다. ` +
+      "같은 사고가 반복되지 않도록 위험징후와 안전대책을 다시 한 번 확인해 주시기 바랍니다.";
+  } else {
+    reminder =
+      `${workTypeLabel}의 핵심 위험요인을 다시 한 번 상기하고, ` +
+      "안전대책을 반드시 준수해 주시기 바랍니다.";
+  }
 
   return [
     "오늘 가장 중요한 위험 포인트를 다시 한 번 확인하겠습니다.",
@@ -721,17 +927,28 @@ const buildComprehensionCheckSectionBody = (
   ].join("\n");
 };
 
-const buildEmergencyEvacuationSectionBody = (input: GenerateTbmInput): string => {
-  const emergencyNotes = getOptionValue(input.options, "비상대피/연락 특이사항");
+const buildEmergencyEvacuationSectionBody = (
+  input: GenerateTbmInput
+): string => {
+  const emergencyCriteria =
+    getOptionValue(input.options, "비상대피/연락 기준") ||
+    getOptionValue(input.options, "비상대피/연락 특이사항");
+
   const lines = [
-    "다음은 비상 시 대피요령을 확인하겠습니다. 비상 대피로는 현장에 사전 지정된 비상계단을 이용해 주시기 바랍니다.",
-    "밖으로 대피 후에는 지정된 비상집결지로 모여 주시기 바랍니다.",
-    "그리고 현재 작업 위치 인근의 소화기 위치도 작업 전 반드시 확인해 주시기 바랍니다.",
-    "작업 전 대피로와 집결지, 소화기 위치를 반드시 확인해 주시기 바랍니다."
+    "다음은 비상 시 대피요령을 확인하겠습니다.",
+    "비상상황이 발생하면 작업을 즉시 중지하고 지정된 대피로를 이용해 비상집결지로 이동해 주시기 바랍니다."
   ];
-  if (emergencyNotes) {
-    lines.push(`오늘 현장 비상대피 및 연락 특이사항은 다음과 같습니다. ${emergencyNotes}`);
+
+  if (emergencyCriteria) {
+    lines.push(
+      `오늘의 비상대피 및 연락 기준은 ${emergencyCriteria}입니다. 대피 시 반드시 이 기준을 준수해 주시기 바랍니다.`
+    );
   }
+
+  lines.push(
+    "대피 후에는 작업인원을 확인하고 누락된 인원이 있으면 즉시 현장 책임자에게 알려 주시기 바랍니다."
+  );
+
   return lines.join("\n");
 };
 
@@ -753,26 +970,34 @@ type LeaderScriptContext = {
   ppeContext: string;
 };
 
-const buildLeaderScriptDraft = (
+const buildLeaderScriptDraft = async (
   input: GenerateTbmInput,
   workContent: WorkContentFallback,
   context: LeaderScriptContext
-): string => {
+): Promise<string> => {
+  const riskBody = await buildCoreRiskSectionBody(
+    input,
+    context.incidentContext
+  );
+
   const bodies: Record<string, string> = {
     인사: buildKickoffSectionBody(input),
     건강: buildHealthCheckSectionBody(context.weatherContext),
     작업: buildWorkShareSectionBody(input, workContent),
-    위험: buildCoreRiskSectionBody(input, context.incidentContext),
+    위험: riskBody,
     조치: buildSafetyActionSectionBody(input, context.ppeContext),
     사례: buildIncidentCaseSectionBody(input, context.incidentContext),
     의견: buildOpinionSectionBody(input),
     비상: buildEmergencyEvacuationSectionBody(input),
-    지적확인: buildComprehensionCheckSectionBody(input, context.incidentContext)
+    지적확인: buildComprehensionCheckSectionBody(
+      input,
+      context.incidentContext
+    )
   };
 
-  return TBM_NINE_STEPS.map((step) => `### ${step.number}. ${step.title}\n${bodies[step.title]}`).join(
-    "\n\n"
-  );
+  return TBM_NINE_STEPS.map(
+    (step) => `### ${step.number}. ${step.title}\n${bodies[step.title]}`
+  ).join("\n\n");
 };
 
 const buildRagReferenceSection = (ragContext: string): string => {
@@ -784,6 +1009,7 @@ const buildRagReferenceSection = (ragContext: string): string => {
 };
 
 const appendOperationalSections = (
+  input: GenerateTbmInput,
   draft: string,
   weatherContext: string,
   incidentContext: string,
@@ -792,46 +1018,127 @@ const appendOperationalSections = (
 ): string => {
   const weatherSummary = weatherContext
     ? [
-        `- 관측시각: ${pickContextLine(weatherContext, "관측시각")}`,
-        `- 기온: ${pickContextLine(weatherContext, "기온")}`,
-        `- 특이기상: ${pickContextLine(weatherContext, "특이기상")}`,
-        `- 대응가이드: 특이기상 조건에 맞춰 휴식/보호구/작업중지 기준을 즉시 적용합니다.`
-      ].join("\n")
+      `- 관측시각: ${pickContextLine(weatherContext, "관측시각")}`,
+      `- 기온: ${pickContextLine(weatherContext, "기온")}`,
+      `- 특이기상: ${pickContextLine(weatherContext, "특이기상")}`,
+      "- 대응가이드: 특이기상 조건에 맞춰 휴식, 보호구 및 작업중지 기준을 적용합니다."
+    ].join("\n")
     : "- 기상 정보 수집 실패: 기본 안전수칙 기준으로 운영합니다.";
 
-  const incidentLines = incidentContext
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("[사고사례 "));
-  const top3 = incidentLines.slice(0, 3);
-  const riskSummary =
-    top3.length > 0
-      ? top3
+  /*
+   * 사용자가 선택한 위험요인이 있으면 우선 사용한다.
+   * 선택값이 없을 때만 기존 사고사례 DB 내용을 사용한다.
+   */
+  const selectedHazards =
+    getOptionValue(input.options, "주요 위험요인") ||
+    getOptionValue(input.options, "현장 특이사항/추가 위험요인");
+
+  let riskSummary: string;
+
+  if (selectedHazards) {
+    const hazardItems = selectedHazards
+      .split(/[,，]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    riskSummary =
+      hazardItems.length > 0
+        ? hazardItems
+          .map((item, index) => `- 위험요인 ${index + 1}: ${item}`)
+          .join("\n")
+        : `- 위험요인: ${selectedHazards}`;
+  } else {
+    const incidentLines = incidentContext
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("[사고사례 "));
+
+    const top3 = incidentLines.slice(0, 3);
+
+    riskSummary =
+      top3.length > 0
+        ? top3
           .map(
-            (line, idx) =>
-              `- 위험요인 ${idx + 1}: ${formatIncidentHighlight(parseIncidentLine(line.replace(/\[사고사례 \d+\]\s*/, "")))}`
+            (line, index) =>
+              `- 위험요인 ${index + 1}: ${formatIncidentHighlight(
+                parseIncidentLine(
+                  line.replace(/\[사고사례 \d+\]\s*/, "")
+                )
+              )}`
           )
           .join("\n")
-      : "- 위험요인 정보가 부족하여 일반 고위험 기준으로 통제조치를 적용합니다.";
+        : "- 작업 전 현장의 주요 위험요인을 확인합니다.";
+  }
 
-  const checklistSummary = [
-    "- [ ] PPE 착용 확인 (하단 PPE 체크리스트 참고)",
-    "- [ ] LOTO 점검",
-    "- [ ] 작업 전 브리핑 완료",
+  /*
+   * 사용자가 선택한 PPE가 있으면 선택값으로 체크리스트를 만든다.
+   * 선택값이 없으면 기존 PPE DB 규정을 사용한다.
+   */
+  const ppeChecklistSummary =
+    buildSelectedPpeChecklistSummary(input, ppeContext);
+
+  const safetyMeasures =
+    getOptionValue(input.options, "필수 안전조치") ||
+    getOptionValue(input.options, "안전조치/작업중지 기준");
+
+  /*
+   * 기존에는 LOTO 점검이 무조건 들어갔지만,
+   * 이제 선택한 안전조치에 LOTO 또는 잠금 관련 내용이 있을 때만 추가한다.
+   */
+  const checklistItems = [
+    "- [ ] PPE 착용 확인",
+    "- [ ] 작업 전 브리핑 완료"
+  ];
+
+  if (/LOTO|잠금|전원 차단|에너지 차단/i.test(safetyMeasures)) {
+    checklistItems.push("- [ ] LOTO 및 에너지 차단 상태 점검");
+  }
+
+  if (safetyMeasures) {
+    checklistItems.push(`- [ ] 필수 안전조치 확인: ${safetyMeasures}`);
+  }
+
+  checklistItems.push(
     "- [ ] 전자서명(진행자/작업책임자) 기록"
-  ].join("\n");
+  );
 
-  const ppeChecklistSummary = buildPpeChecklistSummary(ppeContext);
+  const checklistSummary = checklistItems.join("\n");
   const ragSummary = buildRagReferenceSection(ragContext);
 
   let updated = draft;
-  updated = ensureSection(updated, "기상 특보 대응", weatherSummary);
-  updated = ensureSection(updated, "핵심 위험요인", riskSummary);
-  updated = ensureSection(updated, "PPE 체크리스트", ppeChecklistSummary);
-  updated = ensureSection(updated, "체크리스트/서명", checklistSummary);
+
+  updated = ensureSection(
+    updated,
+    "기상 특보 대응",
+    weatherSummary
+  );
+
+  updated = ensureSection(
+    updated,
+    "핵심 위험요인",
+    riskSummary
+  );
+
+  updated = ensureSection(
+    updated,
+    "PPE 체크리스트",
+    ppeChecklistSummary
+  );
+
+  updated = ensureSection(
+    updated,
+    "체크리스트/서명",
+    checklistSummary
+  );
+
   if (ragSummary) {
-    updated = ensureSection(updated, "RAG 근거", ragSummary);
+    updated = ensureSection(
+      updated,
+      "RAG 근거",
+      ragSummary
+    );
   }
+
   return updated;
 };
 
@@ -854,13 +1161,18 @@ export const generateTbmDraft = async (
     buildPpeContext(input.preset.workType)
   ]);
 
-  const leaderScriptDraft = buildLeaderScriptDraft(input, workContentFallback, {
-    weatherContext,
-    incidentContext,
-    ppeContext
-  });
+  const leaderScriptDraft = await buildLeaderScriptDraft(
+    input,
+    workContentFallback,
+    {
+      weatherContext,
+      incidentContext,
+      ppeContext
+    }
+  );
   const scriptDraft = `${leaderScriptDraft}\n\n### Safety Logic Check\n- 필수 섹션 누락: 없음\n- 규정 형식 점검: 통과`;
   const scriptDraftWithOps = appendOperationalSections(
+    input,
     scriptDraft,
     weatherContext,
     incidentContext,
