@@ -532,7 +532,15 @@ const toPoliteControlSentence = (value: string): string => {
   if (phrase.endsWith("실시")) {
     return `${phrase}해 주시기 바랍니다.`;
   }
-  return `${phrase}을 확인해 주시기 바랍니다.`;
+  const lastChar = phrase.charCodeAt(phrase.length - 1);
+  const hasFinalConsonant =
+    lastChar >= 0xac00 &&
+    lastChar <= 0xd7a3 &&
+    (lastChar - 0xac00) % 28 !== 0;
+
+  const objectParticle = hasFinalConsonant ? "을" : "를";
+
+  return `${phrase}${objectParticle} 확인해 주시기 바랍니다.`;
 };
 
 const normalizeControlListTone = (value: string): string => {
@@ -588,18 +596,18 @@ const parseIncidentLine = (line: string): IncidentHighlight => {
       .join(" ")
       .trim();
     return {
-      headline: normalizeTbmSpeechTone(headline || parts[0]),
+      headline: headline || parts[0],
       detail: normalizeTbmSpeechTone(contentPart.replace(/^내용:/, "").trim())
     };
   }
   const hazardMatch = line.match(/유형:([^,]+),\s*사고:([^,]+),\s*표준조치:(.+)$/);
   if (hazardMatch) {
     return {
-      headline: normalizeTbmSpeechTone(normalizeHazardHeadline(hazardMatch[1], hazardMatch[2])),
+      headline: normalizeHazardHeadline(hazardMatch[1], hazardMatch[2]),
       detail: normalizeTbmSpeechTone(hazardMatch[3].trim())
     };
   }
-  return { headline: normalizeTbmSpeechTone(line), detail: "" };
+  return { headline: line.trim(), detail: "" };
 };
 
 const extractIncidentHighlights = (incidentContext: string, limit: number): IncidentHighlight[] =>
@@ -674,9 +682,14 @@ const buildWorkShareSectionBody = (
 
   const location = input.preset.location || "현장";
 
+  const taskLabel =
+    task.endsWith("작업")
+      ? task
+      : `${task} 작업`;
+
   const lines = [
     "다음은 오늘 작업내용을 공유하겠습니다.",
-    `오늘 작업내용은 ${location}에서 진행하는 ${task} 작업입니다.`
+    `오늘 작업내용은 ${location}에서 진행하는 ${taskLabel}입니다.`
   ];
 
   if (equipment) {
@@ -845,23 +858,88 @@ const buildSafetyActionSectionBody = (
   return lines.join("\n");
 };
 
+const normalizeIncidentDetailSentence = (value: string): string => {
+  const normalized = value
+    .trim()
+    .replace(/\s+/g, " ");
+
+  if (!normalized) {
+    return "";
+  }
+
+  // 이미 정상적인 문장형이면 내용을 바꾸지 않고 마침표만 보장한다.
+  if (
+    /(습니다|합니다|바랍니다|됩니다|되었습니다|발생했습니다|입었습니다)[.!?]?$/.test(
+      normalized
+    )
+  ) {
+    return /[.!?]$/.test(normalized)
+      ? normalized
+      : `${normalized}.`;
+  }
+
+  // 쉼표 또는 세미콜론으로 구분된 안전조치 목록을 각각 문장으로 변환한다.
+  return normalized
+    .split(/[,，;；]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => toPoliteControlSentence(item))
+    .filter(Boolean)
+    .join(" ");
+};
+
 const buildIncidentCaseSectionBody = (
   input: GenerateTbmInput,
   incidentContext: string
 ): string => {
-  const workType = input.preset.workType || "오늘 작업";
+  const workType = input.preset.workType || "오늘";
+
+  const workTypeLabel = workType.endsWith("작업")
+    ? workType
+    : `${workType} 작업`;
+
   const highlights = extractIncidentHighlights(incidentContext, 2);
-  const lines = [`다음은 ${workType} 작업과 유사한 사고사례를 공유하겠습니다.`];
+
+  const lines = [
+    `다음은 ${workTypeLabel}과 유사한 사고사례를 공유하겠습니다.`
+  ];
+
   if (highlights.length > 0) {
     highlights.forEach((item) => {
-      lines.push(`- ${formatIncidentHighlight(item)}`);
+      const headline = item.headline
+        // 이전 처리 과정에서 제목에 잘못 붙은 진행 문구를 제거한다.
+        .replace(/을 확인해 주시기 바랍니다\.?/g, "")
+        .replace(/를 확인해 주시기 바랍니다\.?/g, "")
+        .replace(/확인해 주시기 바랍니다\.?/g, "")
+        .replace(/해 주시기 바랍니다\.?/g, "")
+        .replace(/[.!?。]+$/g, "")
+        .trim();
+
+      const detail = normalizeIncidentDetailSentence(item.detail);
+
+      if (detail) {
+        lines.push(
+          `${headline}이 발생할 수 있습니다. ${detail}`
+        );
+      } else {
+        lines.push(
+          `${headline}과 관련된 사고가 발생한 사례가 있습니다.`
+        );
+      }
     });
   } else {
     lines.push(
-      `유사한 ${workType} 작업에서 작업 전 확인 부족과 안전조치 미준수로 사고가 발생한 사례가 있습니다.`
+      `유사한 ${workTypeLabel}에서 작업 전 확인 부족과 안전조치 미준수로 사고가 발생한 사례가 있습니다.`
+    );
+
+    lines.push(
+      "오늘 작업에서도 같은 사고가 발생하지 않도록 작업 전 장비 상태와 작업구역을 확인해 주시기 바랍니다."
     );
   }
-  lines.push("같은 사고가 반복되지 않도록 작업 전 확인과 상호 점검을 철저히 해 주시기 바랍니다.");
+
+  lines.push(
+    "같은 사고가 반복되지 않도록 작업 전 확인과 상호 점검을 철저히 해 주시기 바랍니다."
+  );
 
   return lines.join("\n");
 };
@@ -922,6 +1000,7 @@ const buildComprehensionCheckSectionBody = (
     "오늘 가장 중요한 위험 포인트를 다시 한 번 확인하겠습니다.",
     `${reminder} 이를 함께 확인하는 의미에서 지적확인은 "${chant}"로 진행하겠습니다.`,
     "지적확인을 준비해 주시기 바랍니다.",
+    "다 함께 따라 해 주시기 바랍니다.",
     `"${chant}" (선창 1회)`,
     `"${chant}" (후창 x 3회)`
   ].join("\n");
