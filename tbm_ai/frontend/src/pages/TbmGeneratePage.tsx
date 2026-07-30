@@ -16,7 +16,6 @@ import Paper from "@mui/material/Paper";
 import Select from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import useMediaQuery from "@mui/material/useMediaQuery";
 
 type TbmPreset = {
   workType: string;
@@ -1134,104 +1133,17 @@ function SurveyFieldHeader({ index, label }: SurveyFieldHeaderProps) {
   );
 }
 
-type MobileSurveyAccordionCardProps = {
+type SurveyCardProps = {
   index: number;
   label: string;
-  valueSummary?: string;
-  completed?: boolean;
-  isCompactMobile: boolean;
-  open: boolean;
-  onToggle: () => void;
   children: React.ReactNode;
 };
 
-function MobileSurveyAccordionCard({
-  index,
-  label,
-  valueSummary,
-  completed = false,
-  isCompactMobile,
-  open,
-  onToggle,
-  children
-}: MobileSurveyAccordionCardProps) {
-  // 태블릿·모니터에서는 기존 카드 구조를 그대로 사용한다.
-  if (!isCompactMobile) {
-    return (
-      <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
-        <SurveyFieldHeader index={index} label={label} />
-        {children}
-      </Paper>
-    );
-  }
-
-  // 425px 이하 모바일에서만 접기/펼치기 형태로 표시한다.
+function SurveyCard({ index, label, children }: SurveyCardProps) {
   return (
     <Paper elevation={0} sx={getSurveyFieldPaperSx(index)}>
-      <Box
-        component="button"
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        sx={{
-          width: "100%",
-          border: 0,
-          p: 0,
-          m: 0,
-          bgcolor: "transparent",
-          color: "inherit",
-          cursor: "pointer",
-          textAlign: "left",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 1
-        }}
-      >
-        <Box sx={{ minWidth: 0 }}>
-          <Typography
-            sx={{
-              fontSize: 13.5,
-              fontWeight: 800,
-              color: panelText,
-              letterSpacing: "-0.01em"
-            }}
-          >
-            {index}. {label}
-          </Typography>
-
-          {!open && completed && valueSummary ? (
-            <Typography
-              sx={{
-                mt: 0.45,
-                fontSize: 13.5,
-                fontWeight: 700,
-                color: "#111111",
-                lineHeight: 1.4,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap"
-              }}
-            >
-              {valueSummary}
-            </Typography>
-          ) : null}
-        </Box>
-
-        <Typography
-          component="span"
-          sx={{
-            flexShrink: 0,
-            fontSize: 18,
-            lineHeight: 1,
-            color: mutedText
-          }}
-        >
-          {open ? "⌃" : "⌄"}
-        </Typography>
-      </Box>
-
-      {open ? <Box sx={{ mt: 1 }}>{children}</Box> : null}
+      <SurveyFieldHeader index={index} label={label} />
+      {children}
     </Paper>
   );
 }
@@ -1272,9 +1184,6 @@ type SurveyCheckboxFieldProps = {
   onChange: (value: string) => void;
   options: string[];
   emptyMessage?: string;
-  isCompactMobile: boolean;
-  open: boolean;
-  onToggle: () => void;
 };
 
 function SurveyCheckboxField({
@@ -1283,28 +1192,17 @@ function SurveyCheckboxField({
   value,
   onChange,
   options,
-  emptyMessage,
-  isCompactMobile,
-  open,
-  onToggle
+  emptyMessage
 }: SurveyCheckboxFieldProps) {
   return (
-    <MobileSurveyAccordionCard
-      index={index}
-      label={label}
-      valueSummary={value}
-      completed={value.trim() !== ""}
-      isCompactMobile={isCompactMobile}
-      open={open}
-      onToggle={onToggle}
-    >
+    <SurveyCard index={index} label={label}>
       <SelectionChipRow
         options={options}
         value={value}
         onChange={onChange}
         emptyMessage={emptyMessage}
       />
-    </MobileSurveyAccordionCard>
+    </SurveyCard>
   );
 }
 
@@ -1316,9 +1214,6 @@ type WorkTypeCategoryFieldProps = {
   onCategoryChange: (categoryCode: string) => void;
   selectedWorkType: string;
   onWorkTypeChange: (value: string) => void;
-  isCompactMobile: boolean;
-  open: boolean;
-  onToggle: () => void;
 };
 
 // 작업종류는 대분류(설비/전기/화기/운반/특수 작업)를 먼저 고르면 그 아래 세부 작업종류가 나타나는
@@ -1330,28 +1225,13 @@ function WorkTypeCategoryField({
   selectedCategoryCode,
   onCategoryChange,
   selectedWorkType,
-  onWorkTypeChange,
-  isCompactMobile,
-  open,
-  onToggle
+  onWorkTypeChange
 }: WorkTypeCategoryFieldProps) {
   const selectedCategory = categories.find((category) => category.code === selectedCategoryCode);
   const subOptions = selectedCategory?.workTypes.map((workType) => workType.name) ?? [];
 
   return (
-    <MobileSurveyAccordionCard
-      index={index}
-      label={label}
-      valueSummary={
-        selectedCategory && selectedWorkType
-          ? `${selectedCategory.name} · ${selectedWorkType}`
-          : selectedCategory?.name ?? ""
-      }
-      completed={selectedWorkType.trim() !== ""}
-      isCompactMobile={isCompactMobile}
-      open={open}
-      onToggle={onToggle}
-    >
+    <SurveyCard index={index} label={label}>
       <SelectionChipRow
         options={categories.map((category) => category.name)}
         value={selectedCategory?.name ?? ""}
@@ -1374,7 +1254,7 @@ function WorkTypeCategoryField({
           />
         </Box>
       ) : null}
-    </MobileSurveyAccordionCard>
+    </SurveyCard>
   );
 }
 
@@ -1387,15 +1267,6 @@ function TbmGeneratePage() {
   const [siteOptions, setSiteOptions] = useState<SiteOption[]>([]);
 
   const [preset, setPreset] = useState<TbmPreset>(INITIAL_PRESET);
-  // 모바일(425px 이하)에서만 카드 접기 기능 사용
-  const isCompactMobile = useMediaQuery("(max-width:425px)");
-
-  const [openSurveyIndex, setOpenSurveyIndex] = useState(1);
-  const handleSurveyCardToggle = (index: number) => {
-    if (!isCompactMobile) return;
-
-    setOpenSurveyIndex((prev) => (prev === index ? 0 : index));
-  };
   const [additionalInputs, setAdditionalInputs] =
     useState<AdditionalTbmInputs>(INITIAL_ADDITIONAL_INPUTS);
 
@@ -2149,15 +2020,7 @@ function TbmGeneratePage() {
     const value = additionalInputs[question.key];
 
     return (
-      <MobileSurveyAccordionCard
-        index={index}
-        label={question.label}
-        valueSummary={value}
-        completed={value.trim() !== ""}
-        isCompactMobile={isCompactMobile}
-        open={openSurveyIndex === index}
-        onToggle={() => handleSurveyCardToggle(index)}
-      >
+      <SurveyCard index={index} label={question.label}>
         <Typography sx={{ fontSize: 12, color: mutedText, mb: 0.8 }}>
           {question.helperText}
           {multiple ? " 여러 개 선택할 수 있습니다." : ""}
@@ -2174,7 +2037,7 @@ function TbmGeneratePage() {
             }));
           }}
         />
-      </MobileSurveyAccordionCard>
+      </SurveyCard>
     );
   };
 
@@ -2201,11 +2064,6 @@ function TbmGeneratePage() {
         multiline
         minRows={3}
         value={additionalInputs.specialNotes}
-        onFocus={() => {
-          if (isCompactMobile) {
-            setOpenSurveyIndex(0);
-          }
-        }}
         onChange={(event) =>
           setAdditionalInputs((prev) => ({
             ...prev,
@@ -2285,15 +2143,8 @@ function TbmGeneratePage() {
               px: 1
             }
           }}
-        > {isCompactMobile ? (
-          <>
-            작업 조건을 선택한 뒤,
-            <br />
-            TBM 생성을 누르면 TBM이 생성됩니다.
-          </>
-        ) : (
-          "작업 조건을 선택한 뒤, TBM 생성을 누르면 TBM이 생성됩니다."
-        )}
+        >
+          작업 조건을 선택한 뒤, TBM 생성을 누르면 TBM이 생성됩니다.
         </Typography>
 
         {errorMessage ? (
@@ -2347,9 +2198,6 @@ function TbmGeneratePage() {
                     return { ...prev, workType: value, permitType: nextPermitType };
                   });
                 }}
-                isCompactMobile={isCompactMobile}
-                open={openSurveyIndex === 1}
-                onToggle={() => handleSurveyCardToggle(1)}
               />
 
               <SurveyCheckboxField
@@ -2363,9 +2211,6 @@ function TbmGeneratePage() {
                   }));
                 }}
                 options={riskOptions}
-                isCompactMobile={isCompactMobile}
-                open={openSurveyIndex === 2}
-                onToggle={() => handleSurveyCardToggle(2)}
               />
 
               <SurveyCheckboxField
@@ -2379,20 +2224,9 @@ function TbmGeneratePage() {
                   }));
                 }}
                 options={workShiftOptions}
-                isCompactMobile={isCompactMobile}
-                open={openSurveyIndex === 3}
-                onToggle={() => handleSurveyCardToggle(3)}
               />
 
-              <MobileSurveyAccordionCard
-                index={4}
-                label="작업일자"
-                valueSummary={preset.workDate}
-                completed={preset.workDate.trim() !== ""}
-                isCompactMobile={isCompactMobile}
-                open={openSurveyIndex === 4}
-                onToggle={() => handleSurveyCardToggle(4)}
-              >
+              <SurveyCard index={4} label="작업일자">
                 <TextField
                   size="small"
                   type="date"
@@ -2408,17 +2242,9 @@ function TbmGeneratePage() {
                   fullWidth
                   sx={darkInputSx}
                 />
-              </MobileSurveyAccordionCard>
+              </SurveyCard>
 
-              <MobileSurveyAccordionCard
-                index={5}
-                label="작업장소"
-                valueSummary={preset.location}
-                completed={preset.location.trim() !== ""}
-                isCompactMobile={isCompactMobile}
-                open={openSurveyIndex === 5}
-                onToggle={() => handleSurveyCardToggle(5)}
-              >
+              <SurveyCard index={5} label="작업장소">
                 <Box sx={{ display: "flex", gap: 1, flexWrap: { xs: "wrap", sm: "nowrap" } }}>
                   <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
                     <Select
@@ -2492,7 +2318,7 @@ function TbmGeneratePage() {
                     장소 추가
                   </Button>
                 </Box>
-              </MobileSurveyAccordionCard>
+              </SurveyCard>
 
               {followUpQuestions.map((question, index) =>
                 renderFollowUpQuestionCard(index + 6, question)
