@@ -383,6 +383,9 @@ function TbmHistoryPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [isLoadingRows, setIsLoadingRows] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const draftLineInputRefs = useRef<
+    Record<string, HTMLInputElement | HTMLTextAreaElement | null>
+  >({});
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewLoading, setViewLoading] = useState(false);
@@ -398,6 +401,11 @@ function TbmHistoryPage() {
   const [signatureChecklistChecks, setSignatureChecklistChecks] = useState<Record<string, boolean>>(
     {}
   );
+  const [isEditingChecklist, setIsEditingChecklist] =
+    useState(false);
+
+  const [checklistEditValue, setChecklistEditValue] =
+    useState<Record<string, boolean>>({});
   const [workerSignature, setWorkerSignature] = useState("");
   const [supervisorSignature, setSupervisorSignature] = useState("");
   const [isSavingSignature, setIsSavingSignature] = useState(false);
@@ -639,10 +647,43 @@ function TbmHistoryPage() {
     }
   };
 
-  const handleSignatureChecklistChange = (item: string, checked: boolean) => {
-    const nextChecklist = { ...signatureChecklistChecks, [item]: checked };
-    setSignatureChecklistChecks(nextChecklist);
-    void saveSignaturePayload(buildSignaturePayload({ checklist: nextChecklist }));
+  const handleChecklistChange = (
+    item: string,
+    checked: boolean
+  ) => {
+    setChecklistEditValue((prev) => ({
+      ...prev,
+      [item]: checked
+    }));
+
+    setSignatureSaveMessage("");
+  };
+
+  const handleCancelChecklistEdit = () => {
+    setChecklistEditValue({
+      ...signatureChecklistChecks
+    });
+
+    setIsEditingChecklist(false);
+    setSignatureSaveMessage("");
+  };
+
+  const handleSaveChecklist = async () => {
+    const saved = await saveSignaturePayload(
+      buildSignaturePayload({
+        checklist: checklistEditValue
+      })
+    );
+
+    if (!saved) {
+      return;
+    }
+
+    setSignatureChecklistChecks({
+      ...checklistEditValue
+    });
+
+    setIsEditingChecklist(false);
   };
 
   const prepareSignatureCanvas = (kind: SignatureKind, value = getSignatureValue(kind)) => {
@@ -843,6 +884,8 @@ function TbmHistoryPage() {
     setIsEditingDraft(false);
     setDraftSaveMessage("");
     setSignatureChecklistChecks({});
+    setChecklistEditValue({});
+    setIsEditingChecklist(false);
     setWorkerSignature("");
     setSupervisorSignature("");
     setSignatureSaveMessage("");
@@ -856,7 +899,11 @@ function TbmHistoryPage() {
       setViewText(result.row.draftText);
       setViewSections(buildPreviewSections(result.row.draftText));
       const signature = result.row.signature ?? EMPTY_SIGNATURE;
-      setSignatureChecklistChecks(signature.checklist ?? {});
+      const loadedChecklist = signature.checklist ?? {};
+      setSignatureChecklistChecks(loadedChecklist);
+      setChecklistEditValue(loadedChecklist);
+
+      setIsEditingChecklist(false);
       const loadedWorkerSignature = signature.workerSignature ?? "";
       const loadedSupervisorSignature =
         signature.supervisorSignature ?? "";
@@ -908,6 +955,123 @@ function TbmHistoryPage() {
     );
 
     setDraftSaveMessage("");
+  };
+
+  const handleViewLineKeyDown = (
+    sectionIndex: number,
+    lineIndex: number,
+    event: React.KeyboardEvent<HTMLDivElement>
+  ) => {
+    if (!isEditingDraft) {
+      return;
+    }
+
+    // 한글 입력 조합 중 키 이벤트 중복 방지
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
+    /*
+     * Enter
+     * 현재 줄 아래에 새로운 입력칸 생성
+     */
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+
+      setViewSections((prev) =>
+        prev.map((section, index) => {
+          if (index !== sectionIndex) {
+            return section;
+          }
+
+          const lines = getSectionLines(section.content);
+
+          lines.splice(lineIndex + 1, 0, "");
+
+          return {
+            ...section,
+            content: lines.join("\n")
+          };
+        })
+      );
+
+      setDraftSaveMessage("");
+
+      window.requestAnimationFrame(() => {
+        const nextInputKey = `${sectionIndex}-${lineIndex + 1}`;
+        draftLineInputRefs.current[nextInputKey]?.focus();
+      });
+
+      return;
+    }
+
+    /*
+     * Backspace
+     * 현재 입력칸이 이미 비어 있는 상태에서 한 번 더 누르면
+     * 현재 입력칸 삭제 후 이전 입력칸으로 이동
+     */
+    if (event.key === "Backspace") {
+      const currentLine = getSectionLines(
+        viewSections[sectionIndex]?.content ?? ""
+      )[lineIndex];
+
+      // 내용이 있으면 일반적인 글자 삭제로 처리
+      if (currentLine !== "") {
+        return;
+      }
+
+      const lines = getSectionLines(
+        viewSections[sectionIndex]?.content ?? ""
+      );
+
+      // 해당 구역에 입력칸이 하나밖에 없으면 삭제하지 않음
+      if (lines.length <= 1) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const previousLineIndex = Math.max(0, lineIndex - 1);
+
+      setViewSections((prev) =>
+        prev.map((section, index) => {
+          if (index !== sectionIndex) {
+            return section;
+          }
+
+          const nextLines = getSectionLines(section.content);
+
+          nextLines.splice(lineIndex, 1);
+
+          return {
+            ...section,
+            content: nextLines.join("\n")
+          };
+        })
+      );
+
+      setDraftSaveMessage("");
+
+      window.requestAnimationFrame(() => {
+        const previousInputKey =
+          `${sectionIndex}-${previousLineIndex}`;
+
+        const previousInput =
+          draftLineInputRefs.current[previousInputKey];
+
+        previousInput?.focus();
+
+        // 이전 문장 맨 끝으로 커서 이동
+        if (previousInput) {
+          const cursorPosition = previousInput.value.length;
+
+          previousInput.setSelectionRange(
+            cursorPosition,
+            cursorPosition
+          );
+        }
+      });
+    }
   };
 
   const handleCancelDraftEdit = () => {
@@ -2068,43 +2232,131 @@ function TbmHistoryPage() {
                       }}
                     >
                       {getSectionLines(section.content).map(
-                        (line, lineIndex) => (
-                          <TextField
-                            key={`${section.title}-${lineIndex}`}
-                            multiline
-                            minRows={1}
-                            fullWidth
-                            value={line}
-                            onChange={(event) =>
-                              handleViewLineChange(
-                                index,
-                                lineIndex,
-                                event.target.value
-                              )
-                            }
-                            placeholder="AI 생성 멘트가 이 영역에 표시됩니다."
-                            disabled={viewLoading || isSavingDraft}
-                            slotProps={{
-                              input: {
-                                readOnly: !isEditingDraft
+                        (line, lineIndex) =>
+                          isEditingDraft ? (
+                            <TextField
+                              key={`${section.title}-${lineIndex}`}
+                              multiline
+                              minRows={1}
+                              fullWidth
+
+                              inputRef={(element) => {
+                                const inputKey = `${index}-${lineIndex}`;
+
+                                if (element) {
+                                  draftLineInputRefs.current[inputKey] = element;
+                                } else {
+                                  delete draftLineInputRefs.current[inputKey];
+                                }
+                              }}
+
+                              value={line}
+
+                              onChange={(event) =>
+                                handleViewLineChange(
+                                  index,
+                                  lineIndex,
+                                  event.target.value
+                                )
                               }
-                            }}
-                            sx={{
-                              width: "100%",
-                              minWidth: 0,
-                              maxWidth: "100%",
 
-                              borderBottom: {
-                                xs:
-                                  lineIndex === getSectionLines(section.content).length - 1
-                                    ? "none"
-                                    : "1px solid #edf2f6",
-                                sm: "none"
-                              },
+                              onKeyDown={(event) =>
+                                handleViewLineKeyDown(
+                                  index,
+                                  lineIndex,
+                                  event
+                                )
+                              }
 
-                              "& .MuiInputBase-root": {
-                                bgcolor: "transparent",
-                                borderRadius: 1,
+                              placeholder=""
+
+                              disabled={viewLoading || isSavingDraft}
+
+                              sx={{
+                                width: "100%",
+                                minWidth: 0,
+                                maxWidth: "100%",
+
+                                borderBottom: {
+                                  xs:
+                                    lineIndex ===
+                                      getSectionLines(section.content).length - 1
+                                      ? "none"
+                                      : "1px solid #edf2f6",
+                                  sm: "none"
+                                },
+
+                                "& .MuiInputBase-root": {
+                                  bgcolor: "transparent",
+                                  borderRadius: 1,
+
+                                  fontSize: {
+                                    xs: 14,
+                                    sm: 13
+                                  },
+
+                                  color: panelText,
+
+                                  lineHeight: {
+                                    xs: 1.6,
+                                    sm: 1.38
+                                  },
+
+                                  fontWeight: {
+                                    xs: 400,
+                                    sm: 500
+                                  },
+
+                                  letterSpacing: {
+                                    xs: "-0.01em",
+                                    sm: "normal"
+                                  },
+
+                                  p: 0,
+                                  minWidth: 0,
+                                  width: "100%"
+                                },
+
+                                "& .MuiInputBase-input": {
+                                  py: {
+                                    xs: 0.05,
+                                    sm: 0.15
+                                  },
+
+                                  px: 0,
+                                  minWidth: 0,
+                                  fontFamily: "inherit",
+                                  wordBreak: "keep-all",
+                                  overflowWrap: "break-word"
+                                },
+
+                                "& .MuiOutlinedInput-notchedOutline": {
+                                  borderColor: "transparent"
+                                },
+
+                                "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+                                  borderColor: "#bfdbfe"
+                                },
+
+                                "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                                  borderColor: accentBlue
+                                }
+                              }}
+                            />
+                          ) : (
+                            <Typography
+                              key={`${section.title}-${lineIndex}`}
+                              component="p"
+
+                              sx={{
+                                width: "100%",
+                                m: 0,
+
+                                py: {
+                                  xs: 0.05,
+                                  sm: 0.15
+                                },
+
                                 fontSize: {
                                   xs: 14,
                                   sm: 13
@@ -2126,38 +2378,26 @@ function TbmHistoryPage() {
                                   xs: "-0.01em",
                                   sm: "normal"
                                 },
-                                p: 0,
-                                minWidth: 0,
-                                width: "100%"
-                              },
 
-                              "& .MuiInputBase-input": {
-                                py: {
-                                  xs: 0.05,
-                                  sm: 0.15
-                                },
-
-                                px: 0,
-                                minWidth: 0,
-                                fontFamily: "inherit",
                                 wordBreak: "keep-all",
-                                overflowWrap: "break-word"
-                              },
+                                overflowWrap: "break-word",
 
-                              "& .MuiOutlinedInput-notchedOutline": {
-                                borderColor: "transparent"
-                              },
+                                userSelect: "none",
+                                WebkitUserSelect: "none",
 
-                              "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
-                                borderColor: "#bfdbfe"
-                              },
-
-                              "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                                borderColor: accentBlue
-                              }
-                            }}
-                          />
-                        )
+                                borderBottom: {
+                                  xs:
+                                    lineIndex ===
+                                      getSectionLines(section.content).length - 1
+                                      ? "none"
+                                      : "1px solid #edf2f6",
+                                  sm: "none"
+                                }
+                              }}
+                            >
+                              {line}
+                            </Typography>
+                          )
                       )}
                     </Box>
                   </Box>
@@ -2243,16 +2483,45 @@ function TbmHistoryPage() {
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={Boolean(signatureChecklistChecks[item])}
+                            checked={Boolean(
+                              isEditingChecklist
+                                ? checklistEditValue[item]
+                                : signatureChecklistChecks[item]
+                            )}
+
                             onChange={(event) =>
-                              handleSignatureChecklistChange(item, event.target.checked)
+                              handleChecklistChange(
+                                item,
+                                event.target.checked
+                              )
                             }
+
                             size="small"
-                            disabled={viewLoading || isSavingSignature}
+
+                            disabled={
+                              viewLoading ||
+                              isSavingSignature ||
+                              !isEditingChecklist
+                            }
+
                             sx={{
                               color: "#7fa0af",
-                              "& .MuiSvgIcon-root": { fontSize: 21 },
-                              "&.Mui-checked": { color: accentBlue }
+
+                              "& .MuiSvgIcon-root": {
+                                fontSize: 21
+                              },
+
+                              "&.Mui-checked": {
+                                color: accentBlue
+                              },
+
+                              "&.Mui-disabled": {
+                                color: "#7fa0af"
+                              },
+
+                              "&.Mui-checked.Mui-disabled": {
+                                color: accentBlue
+                              }
                             }}
                           />
                         }
@@ -2472,11 +2741,20 @@ function TbmHistoryPage() {
                   variant="contained"
                   onClick={() => {
                     setIsEditingDraft(true);
+
+                    // 체크리스트도 수정 모드로 변경
+                    setChecklistEditValue({
+                      ...signatureChecklistChecks,
+                    });
+                    setIsEditingChecklist(true);
+
                     setDraftSaveMessage("");
+                    setSignatureSaveMessage("");
                   }}
                   disabled={
                     viewLoading ||
                     isSavingDraft ||
+                    isSavingSignature ||
                     viewSections.length === 0
                   }
                   sx={{
@@ -2484,35 +2762,27 @@ function TbmHistoryPage() {
                       xs: 76,
                       sm: "auto"
                     },
-
                     height: {
                       xs: 40,
                       sm: "auto"
                     },
-
                     px: {
                       xs: 1.5,
                       sm: 2
                     },
-
                     bgcolor: accentBlue,
                     color: "#ffffff",
-
                     borderRadius: 0,
                     boxShadow: "none",
-
                     fontSize: {
                       xs: 14,
                       sm: 14
                     },
-
                     fontWeight: {
                       xs: 700,
                       sm: 500
                     },
-
                     whiteSpace: "nowrap",
-
                     "&:hover": {
                       bgcolor: accentBlueHover,
                       boxShadow: "none"
@@ -2525,8 +2795,11 @@ function TbmHistoryPage() {
             ) : (
               <>
                 <Button
-                  onClick={handleCancelDraftEdit}
-                  disabled={isSavingDraft}
+                  onClick={() => {
+                    handleCancelDraftEdit();
+                    handleCancelChecklistEdit();
+                  }}
+                  disabled={isSavingDraft || isSavingSignature}
                   sx={{
                     minWidth: {
                       xs: 60,
@@ -2563,10 +2836,16 @@ function TbmHistoryPage() {
 
                 <Button
                   variant="contained"
-                  onClick={() => void handleSaveDraft()}
+                  onClick={() => {
+                    void (async () => {
+                      await handleSaveDraft();
+                      await handleSaveChecklist();
+                    })();
+                  }}
                   disabled={
                     viewLoading ||
                     isSavingDraft ||
+                    isSavingSignature ||
                     viewSections.length === 0
                   }
                   sx={{
