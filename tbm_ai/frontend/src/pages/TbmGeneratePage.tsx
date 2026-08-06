@@ -51,7 +51,7 @@ type FollowUpQuestion = {
   options: string[];
 };
 
-const MULTI_SELECT_QUESTION_KEYS = new Set<FollowUpQuestion["key"]>(["equipment", "requiredPpe"]);
+const MULTI_SELECT_QUESTION_KEYS = new Set<FollowUpQuestion["key"]>(["equipment", "requiredPpe",  "siteHazards", "safetyMeasures",  "emergencyNotes",]);
 const MULTI_SELECT_SEPARATOR = ", ";
 
 const isMultiSelectQuestion = (key: FollowUpQuestion["key"]): boolean =>
