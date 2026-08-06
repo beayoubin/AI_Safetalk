@@ -3734,82 +3734,112 @@ function TbmHistoryPage() {
 
       <Dialog
         open={deleteTargetId !== null}
-        onClose={() => setDeleteTargetId(null)}
+        onClose={() => {
+          if (!isDeleting) {
+            setDeleteTargetId(null);
+          }
+        }}
+        maxWidth="xs"
+        fullWidth
         slotProps={{
           paper: {
             sx: {
+              width: "calc(100% - 32px)",
+              maxWidth: 380,
+              m: 2,
               bgcolor: panelBg,
               color: panelText,
               border: `1px solid ${panelBorder}`,
-              borderRadius: 0,
-
-              width: {
-                xs: "calc(100vw - 16px)",
-                sm: "100%"
-              },
-
-              maxWidth: {
-                xs: "calc(100vw - 16px)",
-                sm: undefined
-              },
-
-              height: {
-                xs: "calc(100dvh - 16px)",
-                sm: "auto"
-              },
-
-              maxHeight: {
-                xs: "calc(100dvh - 16px)",
-                sm: "90vh"
-              },
-
-              m: {
-                xs: 1,
-                sm: 4
-              }
+              borderRadius: 2,
+              boxShadow: "0 18px 48px rgba(15, 23, 42, 0.18)",
+              overflow: "hidden"
             }
           }
         }}
       >
         <DialogTitle
           sx={{
-            fontSize: {
-              xs: 16,
-              sm: 17
-            },
-            fontWeight: 700,
-            borderBottom: `1px solid ${panelBorder}`,
-            px: {
-              xs: 2,
-              sm: 3
-            },
-            py: {
-              xs: 1.5,
-              sm: 2
-            },
-            lineHeight: 1.5,
-            wordBreak: "keep-all"
+            px: 2.5,
+            pt: 2.25,
+            pb: 0.75,
+            fontSize: 17,
+            fontWeight: 800,
+            color: panelText,
+            lineHeight: 1.4
           }}
         >
           TBM 이력 삭제
         </DialogTitle>
-        <DialogContent>
-          <Typography sx={{ fontSize: 13 }}>
-            이 TBM 이력을 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다.
+
+        <DialogContent
+          sx={{
+            px: 2.5,
+            pt: "4px !important",
+            pb: 1.5
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: 13,
+              color: mutedText,
+              lineHeight: 1.65,
+              wordBreak: "keep-all"
+            }}
+          >
+            이 TBM 이력을 삭제하시겠습니까?<br />
+            삭제 후에는 복구할 수 없습니다.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ borderTop: `1px solid ${panelBorder}` }}>
+
+        <DialogActions
+          sx={{
+            px: 2.5,
+            pb: 2.25,
+            pt: 0.5,
+            gap: 1
+          }}
+        >
           <Button
+            variant="outlined"
             onClick={() => setDeleteTargetId(null)}
             disabled={isDeleting}
-            sx={{ color: panelText }}
+            sx={{
+              minWidth: 76,
+              height: 34,
+              color: panelText,
+              borderColor: panelBorder,
+              borderRadius: 1.5,
+              fontSize: 12,
+              fontWeight: 700,
+              textTransform: "none",
+              "&:hover": {
+                borderColor: accentBlue,
+                bgcolor: rowHoverBg
+              }
+            }}
           >
             취소
           </Button>
+
           <Button
+            variant="contained"
             onClick={() => void handleDelete()}
             disabled={isDeleting}
-            sx={{ color: errorColor }}
+            sx={{
+              minWidth: 76,
+              height: 34,
+              bgcolor: errorColor,
+              color: "#ffffff",
+              borderRadius: 1.5,
+              fontSize: 12,
+              fontWeight: 800,
+              boxShadow: "none",
+              textTransform: "none",
+              "&:hover": {
+                bgcolor: "#b91c1c",
+                boxShadow: "none"
+              }
+            }}
           >
             {isDeleting ? "삭제 중..." : "삭제"}
           </Button>

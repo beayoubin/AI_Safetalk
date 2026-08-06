@@ -161,12 +161,12 @@ const inputBg = "#f7fdff";
 const inputBorder = "#ffccbc";
 const inputText = "#11344a";
 const inputPlaceholder = "#7fa0af";
-const previewPanelBg = "#fff3e0";
+const previewPanelBg = "#fff8f2";
 const previewSurfaceBg = "#ffffff";
 const previewSurfaceBorder = "#ffcc80";
-const previewScriptAccent = "#1d4ed8";
-const previewScriptBorder = "#93c5fd";
-const previewScriptHeaderBg = "#bfdbfe";
+const previewScriptAccent = "#d32f2f";      // 제목 빨강
+const previewScriptBorder = "#ffb74d";      // 테두리 주황
+const previewScriptHeaderBg = "#fff3e0";    // 헤더 연주황
 const cardGradientBorder = "#ffb74d";
 const cardGradient =
   "linear-gradient(135deg, #ffffff 0%, #fff8f2 45%, #fff0eb 100%)";
@@ -1483,7 +1483,7 @@ function TbmGeneratePage() {
   const [workerSignatures, setWorkerSignatures] = useState<string[]>([]);
   const [supervisorSignature, setSupervisorSignature] = useState("");
   const [isSavingSignature, setIsSavingSignature] = useState(false);
-const [signatureSaveMessage, setSignatureSaveMessage] = useState("");
+  const [signatureSaveMessage, setSignatureSaveMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const workerSignatureCanvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const supervisorSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -2327,33 +2327,33 @@ const [signatureSaveMessage, setSignatureSaveMessage] = useState("");
             작업자 {workerIndex + 1} 서명
           </Typography>
 
-<Button
-              size="small"
-              variant="outlined"
-              onClick={() => clearWorkerSignature(workerIndex)}
-              disabled={
-                isPreviewProducing ||
-                isSavingSignature ||
-                !signatureValue
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => clearWorkerSignature(workerIndex)}
+            disabled={
+              isPreviewProducing ||
+              isSavingSignature ||
+              !signatureValue
+            }
+            sx={{
+              minWidth: 54,
+              px: 0.8,
+              py: 0.2,
+              fontSize: 11,
+              color: panelText,
+              borderColor: inputBorder,
+              borderRadius: chipRadius,
+              textTransform: "none",
+              "&:hover": {
+                borderColor: accentBlue,
+                bgcolor: "#eef7ff"
               }
-              sx={{
-                minWidth: 54,
-                px: 0.8,
-                py: 0.2,
-                fontSize: 11,
-                color: panelText,
-                borderColor: inputBorder,
-                borderRadius: chipRadius,
-                textTransform: "none",
-                "&:hover": {
-                  borderColor: accentBlue,
-                  bgcolor: "#eef7ff"
-                }
-              }}
-            >
-              지우기
-            </Button>
-          
+            }}
+          >
+            지우기
+          </Button>
+
         </Box>
 
         <Box
@@ -3061,15 +3061,21 @@ const [signatureSaveMessage, setSignatureSaveMessage] = useState("");
                     fontWeight: 700,
                     borderRadius: chipRadius,
                     textTransform: "none",
-                    background: "linear-gradient(100deg, #2563eb 0%, #1d4ed8 48%, #0f6ea8 100%)",
+
+                    background:
+                      "linear-gradient(100deg, #f57c00 0%, #ef6c00 48%, #d32f2f 100%)",
                     color: "#ffffff",
-                    boxShadow: "0 14px 28px rgba(37, 99, 235, 0.28)",
+                    boxShadow: "0 14px 28px rgba(239, 108, 0, 0.28)",
+
                     "&:hover": {
-                      background: "linear-gradient(100deg, #1d4ed8 0%, #1e40af 48%, #0a527e 100%)",
-                      boxShadow: "0 16px 32px rgba(29, 78, 216, 0.3)"
+                      background:
+                        "linear-gradient(100deg, #e65100 0%, #d84315 48%, #b71c1c 100%)",
+                      boxShadow: "0 16px 32px rgba(211, 47, 47, 0.3)"
                     },
+
                     "&.Mui-disabled": {
-                      background: "linear-gradient(100deg, #bfdbfe 0%, #dbeafe 52%, #e0f2fe 100%)",
+                      background:
+                        "linear-gradient(100deg, #ffe0b2 0%, #ffccbc 52%, #ffcdd2 100%)",
                       color: "rgba(255,255,255,0.9)"
                     }
                   }}
@@ -3627,15 +3633,21 @@ const [signatureSaveMessage, setSignatureSaveMessage] = useState("");
                         fontWeight: 800,
                         borderRadius: chipRadius,
                         textTransform: "none",
-                        bgcolor: accentBlue,
+
+                        background:
+                          "linear-gradient(100deg, #f57c00 0%, #ef6c00 48%, #d32f2f 100%)",
                         color: "#ffffff",
-                        boxShadow: "0 12px 24px rgba(37, 99, 235, 0.24)",
+                        boxShadow: "0 12px 24px rgba(239, 108, 0, 0.24)",
+
                         "&:hover": {
-                          bgcolor: accentBlueHover,
-                          boxShadow: "0 14px 28px rgba(29, 78, 216, 0.28)"
+                          background:
+                            "linear-gradient(100deg, #e65100 0%, #d84315 48%, #b71c1c 100%)",
+                          boxShadow: "0 14px 28px rgba(211, 47, 47, 0.28)"
                         },
+
                         "&.Mui-disabled": {
-                          bgcolor: "#bfdbfe",
+                          background:
+                            "linear-gradient(100deg, #ffe0b2 0%, #ffccbc 52%, #ffcdd2 100%)",
                           color: "rgba(255,255,255,0.9)"
                         }
                       }}
