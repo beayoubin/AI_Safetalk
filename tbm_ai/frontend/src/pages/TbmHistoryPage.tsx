@@ -111,6 +111,54 @@ const EMPTY_SIGNATURE: TbmSignatureData = {
   signedAt: null
 };
 
+const parseWorkerSignatures = (value: string): string[] => {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+
+    if (Array.isArray(parsed)) {
+      // 빈 문자열도 유지해야 작업 인원 수만큼 칸이 표시됨
+      return parsed.map((signature) =>
+        typeof signature === "string"
+          ? signature
+          : ""
+      );
+    }
+  } catch {
+    // 과거 데이터는 단일 서명 이미지일 수 있음
+  }
+
+  return value.trim() ? [value] : [];
+};
+
+const parseWorkerCountFromDraft = (draftText: string): number => {
+  const patterns = [
+    /작업\s*인원\s*[:：]\s*(\d+)\s*명?/i,
+    /작업\s*인원\s*(\d+)\s*명/i,
+    /작업자\s*수\s*[:：]\s*(\d+)\s*명?/i,
+    /작업인원\s*[:：]?\s*(\d+)\s*명?/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = draftText.match(pattern);
+
+    if (match) {
+      const count = Number(match[1]);
+
+      if (
+        Number.isInteger(count) &&
+        count >= 1 &&
+        count <= 100
+      ) {
+        return count;
+      }
+    }
+  }
+
+  return 0;
+};
+
 const riskChipStyle: Record<string, { color: string; borderColor: string; bgcolor: string }> = {
   HIGH: { color: "#dc2626", borderColor: "#fecaca", bgcolor: "#fef2f2" },
   MEDIUM: { color: "#b45309", borderColor: "#fde68a", bgcolor: "#fffbeb" },
@@ -406,11 +454,16 @@ function TbmHistoryPage() {
 
   const [checklistEditValue, setChecklistEditValue] =
     useState<Record<string, boolean>>({});
+  const [workerSignatures, setWorkerSignatures] = useState<string[]>([]);
+  const [historyWorkerCount, setHistoryWorkerCount] = useState(0);
   const [workerSignature, setWorkerSignature] = useState("");
   const [supervisorSignature, setSupervisorSignature] = useState("");
   const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [signatureSaveMessage, setSignatureSaveMessage] = useState("");
   const workerSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const workerSignatureCanvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
+  const [editingWorkerSignatures, setEditingWorkerSignatures] = useState<Record<number, boolean>>({});
+  const activeWorkerSignatureIndexRef = useRef<number | null>(null);
   const supervisorSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const activeSignatureRef = useRef<SignatureKind | null>(null);
   const lastSignaturePointRef = useRef<{ x: number; y: number } | null>(null);
@@ -574,11 +627,28 @@ function TbmHistoryPage() {
     setSupervisorSignature(value);
   };
 
-  const buildSignaturePayload = (override: Partial<TbmSignatureData> = {}): TbmSignatureData => ({
-    checklist: override.checklist ?? signatureChecklistChecks,
-    workerSignature: override.workerSignature ?? workerSignature,
-    supervisorSignature: override.supervisorSignature ?? supervisorSignature,
-    signedAt: override.signedAt ?? new Date().toISOString()
+  const buildSignaturePayload = (
+    override: Partial<TbmSignatureData> = {}
+  ): TbmSignatureData => ({
+    checklist:
+      override.checklist ??
+      signatureChecklistChecks,
+
+    workerSignature:
+      override.workerSignature ??
+      (
+        workerSignatures.length > 0
+          ? JSON.stringify(workerSignatures)
+          : workerSignature
+      ),
+
+    supervisorSignature:
+      override.supervisorSignature ??
+      supervisorSignature,
+
+    signedAt:
+      override.signedAt ??
+      new Date().toISOString()
   });
 
   const saveSignaturePayload = async (
@@ -686,47 +756,110 @@ function TbmHistoryPage() {
     setIsEditingChecklist(false);
   };
 
-  const prepareSignatureCanvas = (kind: SignatureKind, value = getSignatureValue(kind)) => {
+  const prepareSignatureCanvas = (
+    kind: SignatureKind,
+    value = getSignatureValue(kind)
+  ) => {
     const canvas = getSignatureCanvas(kind);
+
     if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const cssWidth = Math.max(1, Math.floor(rect.width));
-    const cssHeight = Math.max(1, Math.floor(rect.height));
-    const dpr = window.devicePixelRatio || 1;
-    const pixelWidth = Math.floor(cssWidth * dpr);
-    const pixelHeight = Math.floor(cssHeight * dpr);
-    const ctx = canvas.getContext("2d");
+    const rect =
+      canvas.getBoundingClientRect();
+
+    const cssWidth = Math.max(
+      1,
+      Math.floor(rect.width)
+    );
+
+    const cssHeight = Math.max(
+      1,
+      Math.floor(rect.height)
+    );
+
+    const dpr =
+      window.devicePixelRatio || 1;
+
+    const pixelWidth = Math.floor(
+      cssWidth * dpr
+    );
+
+    const pixelHeight = Math.floor(
+      cssHeight * dpr
+    );
+
+    const ctx =
+      canvas.getContext("2d");
+
     if (!ctx) return;
 
-    const resized = canvas.width !== pixelWidth || canvas.height !== pixelHeight;
-    if (resized) {
+    if (
+      canvas.width !== pixelWidth ||
+      canvas.height !== pixelHeight
+    ) {
       canvas.width = pixelWidth;
       canvas.height = pixelHeight;
     }
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(
+      dpr,
+      0,
+      0,
+      dpr,
+      0,
+      0
+    );
+
     ctx.lineWidth = 2.4;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.strokeStyle = panelText;
 
+    ctx.clearRect(
+      0,
+      0,
+      cssWidth,
+      cssHeight
+    );
+
     if (!value) {
-      ctx.clearRect(0, 0, cssWidth, cssHeight);
       return;
     }
 
-    if (resized) {
-      const image = new Image();
-      image.onload = () => {
-        const restoreCtx = canvas.getContext("2d");
-        if (!restoreCtx) return;
-        restoreCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        restoreCtx.clearRect(0, 0, cssWidth, cssHeight);
-        restoreCtx.drawImage(image, 0, 0, cssWidth, cssHeight);
-      };
-      image.src = value;
-    }
+    const image = new Image();
+
+    image.onload = () => {
+      const restoreCtx =
+        canvas.getContext("2d");
+
+      if (!restoreCtx) return;
+
+      restoreCtx.setTransform(
+        dpr,
+        0,
+        0,
+        dpr,
+        0,
+        0
+      );
+
+      restoreCtx.clearRect(
+        0,
+        0,
+        cssWidth,
+        cssHeight
+      );
+
+      restoreCtx.drawImage(
+        image,
+        0,
+        0,
+        cssWidth,
+        cssHeight
+      );
+    };
+
+    image.src = value;
   };
 
   const getSignaturePoint = (
@@ -738,6 +871,351 @@ function TbmHistoryPage() {
       x: event.clientX - rect.left,
       y: event.clientY - rect.top
     };
+  };
+
+  const setWorkerSignatureAt = (
+    workerIndex: number,
+    value: string
+  ) => {
+    setWorkerSignatures((prev) => {
+      const nextSignatures = Array.from(
+        {
+          length: Math.max(
+            historyWorkerCount,
+            prev.length,
+            workerIndex + 1
+          )
+        },
+        (_, index) => prev[index] ?? ""
+      );
+
+      nextSignatures[workerIndex] = value;
+
+      return nextSignatures;
+    });
+  };
+
+  const prepareWorkerSignatureCanvas = (
+    workerIndex: number,
+    value = workerSignatures[workerIndex] ?? ""
+  ) => {
+    const canvas =
+      workerSignatureCanvasRefs.current[workerIndex];
+
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+
+    const cssWidth = Math.max(
+      1,
+      Math.floor(rect.width)
+    );
+
+    const cssHeight = Math.max(
+      1,
+      Math.floor(rect.height)
+    );
+
+    const dpr = window.devicePixelRatio || 1;
+
+    const pixelWidth = Math.floor(
+      cssWidth * dpr
+    );
+
+    const pixelHeight = Math.floor(
+      cssHeight * dpr
+    );
+
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) return;
+
+    if (
+      canvas.width !== pixelWidth ||
+      canvas.height !== pixelHeight
+    ) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+
+    ctx.setTransform(
+      dpr,
+      0,
+      0,
+      dpr,
+      0,
+      0
+    );
+
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = panelText;
+
+    // 기존 canvas를 먼저 초기화
+    ctx.clearRect(
+      0,
+      0,
+      cssWidth,
+      cssHeight
+    );
+
+    if (!value) {
+      return;
+    }
+
+    // 크기 변경 여부와 관계없이 항상 저장된 서명 복원
+    const image = new Image();
+
+    image.onload = () => {
+      const restoreCtx =
+        canvas.getContext("2d");
+
+      if (!restoreCtx) return;
+
+      restoreCtx.setTransform(
+        dpr,
+        0,
+        0,
+        dpr,
+        0,
+        0
+      );
+
+      restoreCtx.clearRect(
+        0,
+        0,
+        cssWidth,
+        cssHeight
+      );
+
+      restoreCtx.drawImage(
+        image,
+        0,
+        0,
+        cssWidth,
+        cssHeight
+      );
+    };
+
+    image.src = value;
+  };
+
+  const handleWorkerSignaturePointerDown = (
+    workerIndex: number,
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    if (
+      viewLoading ||
+      isSavingSignature ||
+      !editingWorkerSignatures[workerIndex]
+    ) {
+      return;
+    }
+
+    const canvas =
+      workerSignatureCanvasRefs.current[workerIndex];
+
+    if (!canvas) return;
+
+    prepareWorkerSignatureCanvas(workerIndex);
+
+    canvas.setPointerCapture(event.pointerId);
+
+    activeWorkerSignatureIndexRef.current =
+      workerIndex;
+
+    lastSignaturePointRef.current =
+      getSignaturePoint(canvas, event);
+
+    event.preventDefault();
+  };
+
+  const handleWorkerSignaturePointerMove = (
+    workerIndex: number,
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    if (
+      activeWorkerSignatureIndexRef.current !==
+      workerIndex ||
+      viewLoading ||
+      isSavingSignature ||
+      !editingWorkerSignatures[workerIndex]
+    ) {
+      return;
+    }
+
+    const canvas =
+      workerSignatureCanvasRefs.current[workerIndex];
+
+    const previousPoint =
+      lastSignaturePointRef.current;
+
+    const ctx = canvas?.getContext("2d");
+
+    if (!canvas || !ctx || !previousPoint) {
+      return;
+    }
+
+    const nextPoint =
+      getSignaturePoint(canvas, event);
+
+    ctx.beginPath();
+    ctx.moveTo(
+      previousPoint.x,
+      previousPoint.y
+    );
+    ctx.lineTo(nextPoint.x, nextPoint.y);
+    ctx.stroke();
+
+    lastSignaturePointRef.current = nextPoint;
+
+    event.preventDefault();
+  };
+
+  const handleWorkerSignaturePointerUp = (
+    workerIndex: number,
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    if (
+      activeWorkerSignatureIndexRef.current !==
+      workerIndex
+    ) {
+      return;
+    }
+
+    const canvas =
+      workerSignatureCanvasRefs.current[workerIndex];
+
+    if (canvas) {
+      if (
+        canvas.hasPointerCapture(event.pointerId)
+      ) {
+        canvas.releasePointerCapture(
+          event.pointerId
+        );
+      }
+
+      const signatureImage =
+        canvas.toDataURL("image/png");
+
+      setWorkerSignatureAt(
+        workerIndex,
+        signatureImage
+      );
+    }
+
+    activeWorkerSignatureIndexRef.current =
+      null;
+
+    lastSignaturePointRef.current = null;
+
+    event.preventDefault();
+  };
+
+  const handleEditWorkerSignature = (
+    workerIndex: number
+  ) => {
+    setEditingWorkerSignatures((prev) => ({
+      ...prev,
+      [workerIndex]: true
+    }));
+
+    setSignatureSaveMessage("");
+
+    window.requestAnimationFrame(() => {
+      prepareWorkerSignatureCanvas(
+        workerIndex,
+        workerSignatures[workerIndex] ?? ""
+      );
+    });
+  };
+
+  const handleCancelWorkerSignature = (
+    workerIndex: number
+  ) => {
+    setEditingWorkerSignatures((prev) => ({
+      ...prev,
+      [workerIndex]: false
+    }));
+
+    setSignatureSaveMessage("");
+
+    window.requestAnimationFrame(() => {
+      prepareWorkerSignatureCanvas(
+        workerIndex,
+        workerSignatures[workerIndex] ?? ""
+      );
+    });
+  };
+
+  const clearWorkerSignature = (
+    workerIndex: number
+  ) => {
+    const canvas =
+      workerSignatureCanvasRefs.current[workerIndex];
+
+    const ctx = canvas?.getContext("2d");
+
+    if (canvas && ctx) {
+      const rect =
+        canvas.getBoundingClientRect();
+
+      ctx.clearRect(
+        0,
+        0,
+        rect.width,
+        rect.height
+      );
+    }
+
+    setWorkerSignatureAt(workerIndex, "");
+    setSignatureSaveMessage("");
+  };
+
+  const handleSaveWorkerSignature = async (
+    workerIndex: number
+  ) => {
+    const signatureValue =
+      workerSignatures[workerIndex] ?? "";
+
+    if (!signatureValue) {
+      setSignatureSaveMessage(
+        `작업자 ${workerIndex + 1}의 서명을 입력해 주세요.`
+      );
+
+      return;
+    }
+
+    const nextSignatures = Array.from(
+      {
+        length: Math.max(
+          historyWorkerCount,
+          workerSignatures.length
+        )
+      },
+      (_, index) =>
+        workerSignatures[index] ?? ""
+    );
+
+    nextSignatures[workerIndex] =
+      signatureValue;
+
+    const saved = await saveSignaturePayload(
+      buildSignaturePayload({
+        workerSignature:
+          JSON.stringify(nextSignatures)
+      })
+    );
+
+    if (!saved) return;
+
+    setWorkerSignatures(nextSignatures);
+
+    setEditingWorkerSignatures((prev) => ({
+      ...prev,
+      [workerIndex]: false
+    }));
   };
 
   const handleSignaturePointerDown = (
@@ -861,7 +1339,14 @@ function TbmHistoryPage() {
     if (!viewOpen || viewLoading) return;
 
     const prepareCanvases = () => {
-      prepareSignatureCanvas("worker", workerSignature);
+      workerSignatureCanvasRefs.current.forEach(
+        (_, workerIndex) => {
+          prepareWorkerSignatureCanvas(
+            workerIndex,
+            workerSignatures[workerIndex] ?? ""
+          );
+        }
+      );
       prepareSignatureCanvas("supervisor", supervisorSignature);
     };
 
@@ -872,7 +1357,7 @@ function TbmHistoryPage() {
       window.cancelAnimationFrame(animationFrameId);
       window.removeEventListener("resize", prepareCanvases);
     };
-  }, [viewOpen, viewLoading, workerSignature, supervisorSignature]);
+  }, [viewOpen, viewLoading, workerSignatures, supervisorSignature, editingWorkerSignatures]);
 
   const handleView = async (id: number) => {
     setViewOpen(true);
@@ -886,6 +1371,9 @@ function TbmHistoryPage() {
     setSignatureChecklistChecks({});
     setChecklistEditValue({});
     setIsEditingChecklist(false);
+    setWorkerSignatures([]);
+    setEditingWorkerSignatures({});
+    setHistoryWorkerCount(0);
     setWorkerSignature("");
     setSupervisorSignature("");
     setSignatureSaveMessage("");
@@ -897,6 +1385,8 @@ function TbmHistoryPage() {
       }
       setViewTitle(result.row.title);
       setViewText(result.row.draftText);
+      const workerCount = parseWorkerCountFromDraft(result.row.draftText);
+      setHistoryWorkerCount(workerCount);
       setViewSections(buildPreviewSections(result.row.draftText));
       const signature = result.row.signature ?? EMPTY_SIGNATURE;
       const loadedChecklist = signature.checklist ?? {};
@@ -905,14 +1395,45 @@ function TbmHistoryPage() {
 
       setIsEditingChecklist(false);
       const loadedWorkerSignature = signature.workerSignature ?? "";
+      const loadedWorkerSignatures =
+        parseWorkerSignatures(loadedWorkerSignature);
+
       const loadedSupervisorSignature =
         signature.supervisorSignature ?? "";
 
-      setWorkerSignature(loadedWorkerSignature);
+      const normalizedWorkerSignatures =
+        workerCount > 0
+          ? Array.from(
+            { length: workerCount },
+            (_, index) =>
+              loadedWorkerSignatures[index] ?? ""
+          )
+          : loadedWorkerSignatures;
+
+      setWorkerSignatures(normalizedWorkerSignatures);
+      setEditingWorkerSignatures(
+        Object.fromEntries(
+          normalizedWorkerSignatures.map(
+            (_, workerIndex) => [
+              workerIndex,
+              false
+            ]
+          )
+        )
+      );
+
+      // 기존 작업자 서명 편집 기능 호환용
+      setWorkerSignature(
+        normalizedWorkerSignatures[0] ?? ""
+      );
+
       setSupervisorSignature(loadedSupervisorSignature);
 
       setEditingSignatures({
-        worker: !loadedWorkerSignature,
+        worker:
+          normalizedWorkerSignatures.every(
+            (signature) => !signature
+          ),
         supervisor: !loadedSupervisorSignature
       });
     } catch (error) {
@@ -1397,6 +1918,305 @@ function TbmHistoryPage() {
       </Box>
     </Box>
   );
+
+  const displayedWorkerCount = Math.max(
+    historyWorkerCount,
+    workerSignatures.length
+  );
+
+  const displayedWorkerSignatures =
+    Array.from(
+      { length: displayedWorkerCount },
+      (_, index) =>
+        workerSignatures[index] ?? ""
+    );
+
+  const renderWorkerSignatureList = () => {
+    if (displayedWorkerCount === 0) {
+      return null;
+    }
+
+    return (
+      <Box
+        sx={{
+          p: {
+            xs: 1,
+            sm: 0.9
+          }
+        }}
+      >
+        <Typography
+          sx={{
+            mb: 1,
+            fontSize: 13,
+            fontWeight: 700,
+            color: panelText
+          }}
+        >
+          작업자 서명 ({displayedWorkerCount}명)
+        </Typography>
+
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, minmax(0, 1fr))",
+              md: "repeat(3, minmax(0, 1fr))"
+            },
+            gap: 1
+          }}
+        >
+          {displayedWorkerSignatures.map(
+            (signature, workerIndex) => {
+              const isEditing =
+                Boolean(
+                  editingWorkerSignatures[
+                  workerIndex
+                  ]
+                );
+
+              return (
+                <Box
+                  key={`worker-signature-${workerIndex}`}
+                  sx={{
+                    p: 0.9,
+                    border:
+                      `1px solid ${panelBorder}`,
+                    bgcolor: "#ffffff"
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent:
+                        "space-between",
+                      gap: 1,
+                      mb: 0.7
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: panelText,
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      작업자 {workerIndex + 1} 서명
+                    </Typography>
+
+                    <Box
+                      sx={{
+                        display: "flex",
+                        gap: 0.5
+                      }}
+                    >
+                      {isEditing ? (
+                        <>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() =>
+                              clearWorkerSignature(
+                                workerIndex
+                              )
+                            }
+                            disabled={
+                              viewLoading ||
+                              isSavingSignature ||
+                              !signature
+                            }
+                            sx={{
+                              minWidth: 46,
+                              px: 0.7,
+                              py: 0.2,
+                              fontSize: 11,
+                              color: panelText,
+                              borderColor:
+                                panelBorder,
+                              borderRadius: 0,
+                              textTransform: "none"
+                            }}
+                          >
+                            지우기
+                          </Button>
+
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() =>
+                              handleCancelWorkerSignature(
+                                workerIndex
+                              )
+                            }
+                            disabled={
+                              viewLoading ||
+                              isSavingSignature
+                            }
+                            sx={{
+                              minWidth: 46,
+                              px: 0.7,
+                              py: 0.2,
+                              fontSize: 11,
+                              color: panelText,
+                              borderColor:
+                                panelBorder,
+                              borderRadius: 0,
+                              textTransform: "none"
+                            }}
+                          >
+                            취소
+                          </Button>
+
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() =>
+                              void handleSaveWorkerSignature(
+                                workerIndex
+                              )
+                            }
+                            disabled={
+                              viewLoading ||
+                              isSavingSignature ||
+                              !signature
+                            }
+                            sx={{
+                              minWidth: 46,
+                              px: 0.7,
+                              py: 0.2,
+                              fontSize: 11,
+                              bgcolor: accentBlue,
+                              borderRadius: 0,
+                              textTransform: "none",
+                              "&:hover": {
+                                bgcolor:
+                                  accentBlueHover
+                              }
+                            }}
+                          >
+                            저장
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() =>
+                            handleEditWorkerSignature(
+                              workerIndex
+                            )
+                          }
+                          disabled={
+                            viewLoading ||
+                            isSavingSignature
+                          }
+                          sx={{
+                            minWidth: 64,
+                            px: 0.8,
+                            py: 0.2,
+                            fontSize: 11,
+                            color: panelText,
+                            borderColor:
+                              panelBorder,
+                            borderRadius: 0,
+                            textTransform: "none",
+                            "&:hover": {
+                              borderColor:
+                                accentBlue,
+                              bgcolor: "#eff6ff"
+                            }
+                          }}
+                        >
+                          수정하기
+                        </Button>
+                      )}
+                    </Box>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      position: "relative",
+                      height: 112,
+                      border:
+                        `1px solid ${panelBorder}`,
+                      bgcolor: inputBg,
+                      overflow: "hidden"
+                    }}
+                  >
+                    {!signature && (
+                      <Typography
+                        sx={{
+                          position: "absolute",
+                          inset: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent:
+                            "center",
+                          color: mutedText,
+                          fontSize: 12,
+                          pointerEvents: "none"
+                        }}
+                      >
+                        이 영역에 직접 서명해 주세요.
+                      </Typography>
+                    )}
+
+                    <canvas
+                      ref={(canvas) => {
+                        workerSignatureCanvasRefs.current[
+                          workerIndex
+                        ] = canvas;
+                      }}
+                      onPointerDown={(event) =>
+                        handleWorkerSignaturePointerDown(
+                          workerIndex,
+                          event
+                        )
+                      }
+                      onPointerMove={(event) =>
+                        handleWorkerSignaturePointerMove(
+                          workerIndex,
+                          event
+                        )
+                      }
+                      onPointerUp={(event) =>
+                        handleWorkerSignaturePointerUp(
+                          workerIndex,
+                          event
+                        )
+                      }
+                      onPointerCancel={(event) =>
+                        handleWorkerSignaturePointerUp(
+                          workerIndex,
+                          event
+                        )
+                      }
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        height: "112px",
+                        display: "block",
+                        cursor:
+                          viewLoading ||
+                            isSavingSignature ||
+                            !isEditing
+                            ? "default"
+                            : "crosshair",
+                        touchAction: "none"
+                      }}
+                    />
+                  </Box>
+                </Box>
+              );
+            }
+          )}
+        </Box>
+      </Box>
+    );
+  };
 
   return (
     <Box
@@ -2540,17 +3360,20 @@ function TbmHistoryPage() {
                     </Box>
                   ))}
                 </Box>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "1fr 1fr"
-                    }
-                  }}
-                >
-                  {renderSignaturePad("worker", "작업자 서명")}
-                  {renderSignaturePad("supervisor", "감독자 서명")}
+                <Box>
+                  {renderWorkerSignatureList()}
+
+                  <Box
+                    sx={{
+                      mt: 1,
+                      borderTop: `1px solid ${panelBorder}`
+                    }}
+                  >
+                    {renderSignaturePad(
+                      "supervisor",
+                      "감독자 서명"
+                    )}
+                  </Box>
                 </Box>
               </Box>
             </Box>

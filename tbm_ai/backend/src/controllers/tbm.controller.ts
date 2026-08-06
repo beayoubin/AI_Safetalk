@@ -125,6 +125,35 @@ const normalizeSignatureImage = (value: unknown): string => {
   return trimmed.slice(0, 1_500_000);
 };
 
+const normalizeWorkerSignatures = (value: unknown): string => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+
+    if (!Array.isArray(parsed)) {
+      return "";
+    }
+
+    const normalized = parsed.map((signature) =>
+      normalizeSignatureImage(signature)
+    );
+
+    return JSON.stringify(normalized);
+  } catch {
+    // 과거 데이터가 작업자 서명 1개만 저장한 형태라면 호환
+    return normalizeSignatureImage(trimmed);
+  }
+};
+
 const normalizeSignatureChecklist = (value: unknown): Record<string, boolean> => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
@@ -582,9 +611,15 @@ export const saveTbmHistorySignature = async (req: Request, res: Response): Prom
     const body = (req.body ?? {}) as SignatureBody;
     const signature: TbmSignatureData = {
       checklist: normalizeSignatureChecklist(body.checklist),
-      workerSignature: normalizeSignatureImage(body.workerSignature),
-      supervisorSignature: normalizeSignatureImage(body.supervisorSignature),
-      signedAt: isFilled(body.signedAt) ? body.signedAt.trim() : new Date().toISOString()
+      workerSignature: normalizeWorkerSignatures(
+        body.workerSignature
+      ),
+      supervisorSignature: normalizeSignatureImage(
+        body.supervisorSignature
+      ),
+      signedAt: isFilled(body.signedAt)
+        ? body.signedAt.trim()
+        : new Date().toISOString()
     };
 
     const saved = await saveTbmHistorySignatureById(historyId, signature);

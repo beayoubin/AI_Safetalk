@@ -388,7 +388,6 @@ const SCRIPT_TEMPLATE: ScriptTemplateItem[] = [
 ];
 
 const SIGNATURE_CHECKLIST_ITEMS = ["PPE 확인", "LOTO 확인", "위험요인 숙지"] as const;
-type SignatureKind = "worker" | "supervisor";
 
 const MINUTES_SECTION_LABELS = [
   "잠재위험요인",
@@ -1481,14 +1480,14 @@ function TbmGeneratePage() {
   const [signatureChecklistChecks, setSignatureChecklistChecks] = useState<Record<string, boolean>>(
     {}
   );
-  const [workerSignature, setWorkerSignature] = useState("");
+  const [workerSignatures, setWorkerSignatures] = useState<string[]>([]);
   const [supervisorSignature, setSupervisorSignature] = useState("");
   const [isSavingSignature, setIsSavingSignature] = useState(false);
-  const [signatureSaveMessage, setSignatureSaveMessage] = useState("");
+const [signatureSaveMessage, setSignatureSaveMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const workerSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const workerSignatureCanvasRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const supervisorSignatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const activeSignatureRef = useRef<SignatureKind | null>(null);
+  const activeSignatureRef = useRef<string | null>(null);
   const lastSignaturePointRef = useRef<{ x: number; y: number } | null>(null);
   const lastSyncedDraftRef = useRef("");
 
@@ -1523,13 +1522,18 @@ function TbmGeneratePage() {
       const otherValue = (followUpOtherInputs[question.key] ?? "").trim();
 
       if (question.key === "workerCount") {
-        return selectedValue.length > 0;
+        const count = Number(selectedValue);
+        return Number.isInteger(count) && count >= 1 && count <= 100;
       }
 
       return selectedValue.length > 0 || otherValue.length > 0;
     });
 
   const readyToGenerate = followUpReady;
+  const workerCount = Math.max(
+    0,
+    Math.min(100, Number(additionalInputs.workerCount) || 0)
+  );
 
   const primaryScriptText = extractPrimaryScriptText(generatedText);
   const scriptSectionMap = extractSectionMapByAliases(primaryScriptText, SCRIPT_SECTION_ALIAS_MAP);
@@ -1574,10 +1578,16 @@ function TbmGeneratePage() {
   const allSignatureChecklistChecked = SIGNATURE_CHECKLIST_ITEMS.every((item) =>
     Boolean(signatureChecklistChecks[item])
   );
+  const allWorkerSignaturesCompleted =
+    workerCount > 0 &&
+    workerSignatures.length === workerCount &&
+    workerSignatures.every((signature) => Boolean(signature));
+
   const signatureSubmitReady =
     allScriptSentencesChecked &&
     allSignatureChecklistChecked &&
-    Boolean(workerSignature && supervisorSignature) &&
+    allWorkerSignaturesCompleted &&
+    Boolean(supervisorSignature) &&
     !isPreviewProducing;
   const previewWorkDate = isPreviewProducing
     ? PRODUCTION_PLACEHOLDER
@@ -1662,10 +1672,10 @@ function TbmGeneratePage() {
     setSignatureChecklistChecks(
       Object.fromEntries(SIGNATURE_CHECKLIST_ITEMS.map((item) => [item, false]))
     );
-    setWorkerSignature("");
+    setWorkerSignatures(Array.from({ length: workerCount }, () => ""));
     setSupervisorSignature("");
     setSignatureSaveMessage("");
-  }, [generatedText, hasRequestedPreview, isPreviewProducing]);
+  }, [generatedText, hasRequestedPreview, isPreviewProducing, workerCount]);
 
   useEffect(() => {
     if (
@@ -1704,23 +1714,41 @@ function TbmGeneratePage() {
     return () => window.clearTimeout(timeoutId);
   }, [currentHistoryId, hasRequestedPreview, isPreviewProducing, scriptDrafts]);
 
-  const getSignatureCanvas = (kind: SignatureKind): HTMLCanvasElement | null =>
-    kind === "worker" ? workerSignatureCanvasRef.current : supervisorSignatureCanvasRef.current;
-
-  const getSignatureValue = (kind: SignatureKind): string =>
-    kind === "worker" ? workerSignature : supervisorSignature;
-
-  const setSignatureValue = (kind: SignatureKind, value: string) => {
-    if (kind === "worker") {
-      setWorkerSignature(value);
+  useEffect(() => {
+    if (
+      !currentHistoryId ||
+      !hasRequestedPreview ||
+      workerCount <= 0
+    ) {
       return;
     }
-    setSupervisorSignature(value);
-  };
+
+    // 이미 입력한 서명이 있으면 초기화하지 않음
+    if (
+      workerSignatures.length === workerCount &&
+      workerSignatures.some(Boolean)
+    ) {
+      return;
+    }
+
+    const initialWorkerSignatures = Array.from(
+      { length: workerCount },
+      (_, index) => workerSignatures[index] ?? ""
+    );
+
+    setWorkerSignatures(initialWorkerSignatures);
+  }, [
+    currentHistoryId,
+    hasRequestedPreview,
+    workerCount
+  ]);
+
+  const encodeWorkerSignatures = (signatures: string[]): string =>
+    JSON.stringify(signatures);
 
   const buildSignaturePayload = (override: Partial<TbmSignatureData> = {}): TbmSignatureData => ({
     checklist: override.checklist ?? signatureChecklistChecks,
-    workerSignature: override.workerSignature ?? workerSignature,
+    workerSignature: override.workerSignature ?? encodeWorkerSignatures(workerSignatures),
     supervisorSignature: override.supervisorSignature ?? supervisorSignature,
     signedAt: override.signedAt ?? new Date().toISOString()
   });
@@ -1757,10 +1785,16 @@ function TbmGeneratePage() {
     }
   };
 
-  const handleSignatureChecklistChange = (item: string, checked: boolean) => {
-    const nextChecklist = { ...signatureChecklistChecks, [item]: checked };
-    setSignatureChecklistChecks(nextChecklist);
-    void saveSignaturePayload(buildSignaturePayload({ checklist: nextChecklist }));
+  const handleSignatureChecklistChange = (
+    item: string,
+    checked: boolean
+  ) => {
+    setSignatureChecklistChecks((prev) => ({
+      ...prev,
+      [item]: checked
+    }));
+
+    setSignatureSaveMessage("");
   };
 
   const handleManualSignatureSave = () => {
@@ -1790,7 +1824,7 @@ function TbmGeneratePage() {
     setScriptSentenceChecks({});
     setMinutesChecks({});
     setSignatureChecklistChecks({});
-    setWorkerSignature("");
+    setWorkerSignatures([]);
     setSupervisorSignature("");
     setSignatureSaveMessage("");
     setErrorMessage("");
@@ -1806,16 +1840,36 @@ function TbmGeneratePage() {
     if (!signatureSubmitReady || isSavingSignature) return;
 
     setErrorMessage("");
-    const saved = await saveSignaturePayload(buildSignaturePayload());
+
+    const saved = await saveSignaturePayload({
+      checklist: signatureChecklistChecks,
+      workerSignature: encodeWorkerSignatures(
+        Array.from(
+          { length: workerCount },
+          (_, index) => workerSignatures[index] ?? ""
+        )
+      ),
+      supervisorSignature,
+      signedAt: new Date().toISOString()
+    });
+
     if (!saved) return;
 
     resetToInitialGenerateScreen();
   };
 
-  const prepareSignatureCanvas = (kind: SignatureKind, value = getSignatureValue(kind)) => {
-    const canvas = getSignatureCanvas(kind);
-    if (!canvas) return;
+  const getSignaturePoint = (
+    canvas: HTMLCanvasElement,
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  };
 
+  const prepareCanvas = (canvas: HTMLCanvasElement, value: string) => {
     const rect = canvas.getBoundingClientRect();
     const cssWidth = Math.max(1, Math.floor(rect.width));
     const cssHeight = Math.max(1, Math.floor(rect.height));
@@ -1855,38 +1909,45 @@ function TbmGeneratePage() {
     }
   };
 
-  const getSignaturePoint = (
-    canvas: HTMLCanvasElement,
-    event: React.PointerEvent<HTMLCanvasElement>
-  ) => {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
-    };
+  const prepareWorkerSignatureCanvas = (workerIndex: number) => {
+    const canvas = workerSignatureCanvasRefs.current[workerIndex];
+    if (!canvas) return;
+    prepareCanvas(canvas, workerSignatures[workerIndex] ?? "");
   };
 
-  const handleSignaturePointerDown = (
-    kind: SignatureKind,
+  const prepareSupervisorSignatureCanvas = () => {
+    const canvas = supervisorSignatureCanvasRef.current;
+    if (!canvas) return;
+    prepareCanvas(canvas, supervisorSignature);
+  };
+
+  const handleWorkerSignaturePointerDown = (
+    workerIndex: number,
     event: React.PointerEvent<HTMLCanvasElement>
   ) => {
     if (isPreviewProducing || isSavingSignature) return;
-    const canvas = getSignatureCanvas(kind);
+    const canvas = workerSignatureCanvasRefs.current[workerIndex];
     if (!canvas) return;
 
-    prepareSignatureCanvas(kind);
+    prepareWorkerSignatureCanvas(workerIndex);
     canvas.setPointerCapture(event.pointerId);
-    activeSignatureRef.current = kind;
+    activeSignatureRef.current = `worker-${workerIndex}`;
     lastSignaturePointRef.current = getSignaturePoint(canvas, event);
     event.preventDefault();
   };
 
-  const handleSignaturePointerMove = (
-    kind: SignatureKind,
+  const handleWorkerSignaturePointerMove = (
+    workerIndex: number,
     event: React.PointerEvent<HTMLCanvasElement>
   ) => {
-    if (activeSignatureRef.current !== kind || isPreviewProducing || isSavingSignature) return;
-    const canvas = getSignatureCanvas(kind);
+    if (
+      activeSignatureRef.current !== `worker-${workerIndex}` ||
+      isPreviewProducing ||
+      isSavingSignature
+    )
+      return;
+
+    const canvas = workerSignatureCanvasRefs.current[workerIndex];
     const previousPoint = lastSignaturePointRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx || !previousPoint) return;
@@ -1900,52 +1961,149 @@ function TbmGeneratePage() {
     event.preventDefault();
   };
 
-  const handleSignaturePointerUp = (
-    kind: SignatureKind,
+  const handleWorkerSignaturePointerUp = (
+    workerIndex: number,
     event: React.PointerEvent<HTMLCanvasElement>
   ) => {
-    if (activeSignatureRef.current !== kind) return;
-    const canvas = getSignatureCanvas(kind);
+    if (activeSignatureRef.current !== `worker-${workerIndex}`) return;
+    const canvas = workerSignatureCanvasRefs.current[workerIndex];
+
     if (canvas) {
       if (canvas.hasPointerCapture(event.pointerId)) {
         canvas.releasePointerCapture(event.pointerId);
       }
+
       const signatureImage = canvas.toDataURL("image/png");
-      setSignatureValue(kind, signatureImage);
-      void saveSignaturePayload(
-        buildSignaturePayload(
-          kind === "worker"
-            ? { workerSignature: signatureImage }
-            : { supervisorSignature: signatureImage }
-        )
+      const nextWorkerSignatures = Array.from(
+        { length: workerCount },
+        (_, index) => (index === workerIndex ? signatureImage : workerSignatures[index] ?? "")
       );
+
+      setWorkerSignatures(nextWorkerSignatures);
+      setSignatureSaveMessage("");
     }
+
     activeSignatureRef.current = null;
     lastSignaturePointRef.current = null;
     event.preventDefault();
   };
 
-  const clearSignature = (kind: SignatureKind) => {
-    const canvas = getSignatureCanvas(kind);
+  const clearWorkerSignature = (workerIndex: number) => {
+    const canvas = workerSignatureCanvasRefs.current[workerIndex];
     const ctx = canvas?.getContext("2d");
+
     if (canvas && ctx) {
       const rect = canvas.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
     }
-    setSignatureValue(kind, "");
+
+    const nextWorkerSignatures = Array.from(
+      { length: workerCount },
+      (_, index) => (index === workerIndex ? "" : workerSignatures[index] ?? "")
+    );
+
+    setWorkerSignatures(nextWorkerSignatures);
     void saveSignaturePayload(
-      buildSignaturePayload(
-        kind === "worker" ? { workerSignature: "" } : { supervisorSignature: "" }
-      )
+      buildSignaturePayload({
+        workerSignature: encodeWorkerSignatures(nextWorkerSignatures)
+      })
     );
   };
+
+  const handleSupervisorSignaturePointerDown = (
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    if (isPreviewProducing || isSavingSignature) return;
+    const canvas = supervisorSignatureCanvasRef.current;
+    if (!canvas) return;
+
+    prepareSupervisorSignatureCanvas();
+    canvas.setPointerCapture(event.pointerId);
+    activeSignatureRef.current = "supervisor";
+    lastSignaturePointRef.current = getSignaturePoint(canvas, event);
+    event.preventDefault();
+  };
+
+  const handleSupervisorSignaturePointerMove = (
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    if (
+      activeSignatureRef.current !== "supervisor" ||
+      isPreviewProducing ||
+      isSavingSignature
+    )
+      return;
+
+    const canvas = supervisorSignatureCanvasRef.current;
+    const previousPoint = lastSignaturePointRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx || !previousPoint) return;
+
+    const nextPoint = getSignaturePoint(canvas, event);
+    ctx.beginPath();
+    ctx.moveTo(previousPoint.x, previousPoint.y);
+    ctx.lineTo(nextPoint.x, nextPoint.y);
+    ctx.stroke();
+    lastSignaturePointRef.current = nextPoint;
+    event.preventDefault();
+  };
+
+  const handleSupervisorSignaturePointerUp = (
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    if (activeSignatureRef.current !== "supervisor") return;
+    const canvas = supervisorSignatureCanvasRef.current;
+
+    if (canvas) {
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+
+      const signatureImage = canvas.toDataURL("image/png");
+      setSupervisorSignature(signatureImage);
+      void saveSignaturePayload(
+        buildSignaturePayload({ supervisorSignature: signatureImage })
+      );
+    }
+
+    activeSignatureRef.current = null;
+    lastSignaturePointRef.current = null;
+    event.preventDefault();
+  };
+
+  const clearSupervisorSignature = () => {
+    const canvas = supervisorSignatureCanvasRef.current;
+    const ctx = canvas?.getContext("2d");
+
+    if (canvas && ctx) {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+    }
+
+    setSupervisorSignature("");
+    void saveSignaturePayload(
+      buildSignaturePayload({ supervisorSignature: "" })
+    );
+  };
+
+  useEffect(() => {
+    setWorkerSignatures((previousSignatures) =>
+      Array.from(
+        { length: workerCount },
+        (_, index) => previousSignatures[index] ?? ""
+      )
+    );
+    workerSignatureCanvasRefs.current = workerSignatureCanvasRefs.current.slice(0, workerCount);
+  }, [workerCount]);
 
   useEffect(() => {
     if (!hasRequestedPreview) return;
 
     const prepareCanvases = () => {
-      prepareSignatureCanvas("worker", workerSignature);
-      prepareSignatureCanvas("supervisor", supervisorSignature);
+      workerSignatureCanvasRefs.current.forEach((canvas, index) => {
+        if (canvas) prepareCanvas(canvas, workerSignatures[index] ?? "");
+      });
+      prepareSupervisorSignatureCanvas();
     };
 
     const animationFrameId = window.requestAnimationFrame(prepareCanvases);
@@ -1955,7 +2113,7 @@ function TbmGeneratePage() {
       window.cancelAnimationFrame(animationFrameId);
       window.removeEventListener("resize", prepareCanvases);
     };
-  }, [hasRequestedPreview, workerSignature, supervisorSignature]);
+  }, [hasRequestedPreview, workerSignatures, supervisorSignature, workerCount]);
 
   const locationMenuOptions = preset.location.trim()
     ? siteOptions.some((item) => item.siteName === preset.location.trim())
@@ -2143,26 +2301,124 @@ function TbmGeneratePage() {
     }
   };
 
-  const renderSignaturePad = (kind: SignatureKind, label: string) => (
+  const renderWorkerSignaturePad = (workerIndex: number) => {
+    const signatureValue = workerSignatures[workerIndex] ?? "";
+
+    return (
+      <Box
+        key={`worker-signature-${workerIndex}`}
+        sx={{
+          p: 0.9,
+          border: `1px solid ${previewSurfaceBorder}`,
+          borderRadius: chipRadius,
+          bgcolor: "#ffffff"
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+            mb: 0.7
+          }}
+        >
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: panelText }}>
+            작업자 {workerIndex + 1} 서명
+          </Typography>
+
+<Button
+              size="small"
+              variant="outlined"
+              onClick={() => clearWorkerSignature(workerIndex)}
+              disabled={
+                isPreviewProducing ||
+                isSavingSignature ||
+                !signatureValue
+              }
+              sx={{
+                minWidth: 54,
+                px: 0.8,
+                py: 0.2,
+                fontSize: 11,
+                color: panelText,
+                borderColor: inputBorder,
+                borderRadius: chipRadius,
+                textTransform: "none",
+                "&:hover": {
+                  borderColor: accentBlue,
+                  bgcolor: "#eef7ff"
+                }
+              }}
+            >
+              지우기
+            </Button>
+          
+        </Box>
+
+        <Box
+          sx={{
+            position: "relative",
+            height: 112,
+            border: `1px solid ${inputBorder}`,
+            bgcolor: inputBg,
+            overflow: "hidden"
+          }}
+        >
+          {!signatureValue ? (
+            <Typography
+              sx={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: inputPlaceholder,
+                fontSize: 12,
+                pointerEvents: "none"
+              }}
+            >
+              작업자 {workerIndex + 1}이 서명해 주세요.
+            </Typography>
+          ) : null}
+
+          <canvas
+            ref={(canvas) => {
+              workerSignatureCanvasRefs.current[workerIndex] = canvas;
+            }}
+            onPointerDown={(event) =>
+              handleWorkerSignaturePointerDown(workerIndex, event)
+            }
+            onPointerMove={(event) =>
+              handleWorkerSignaturePointerMove(workerIndex, event)
+            }
+            onPointerUp={(event) =>
+              handleWorkerSignaturePointerUp(workerIndex, event)
+            }
+            onPointerCancel={(event) =>
+              handleWorkerSignaturePointerUp(workerIndex, event)
+            }
+            style={{
+              position: "relative",
+              width: "100%",
+              height: "112px",
+              display: "block",
+              cursor: isPreviewProducing || isSavingSignature ? "not-allowed" : "crosshair",
+              touchAction: "none"
+            }}
+          />
+        </Box>
+      </Box>
+    );
+  };
+
+  const renderSupervisorSignaturePad = () => (
     <Box
       sx={{
         p: 0.9,
-
-        borderRight: {
-          xs: "none",
-          sm:
-            kind === "worker"
-              ? `1px solid ${previewSurfaceBorder}`
-              : "none"
-        },
-
-        borderBottom: {
-          xs:
-            kind === "worker"
-              ? `1px solid ${previewSurfaceBorder}`
-              : "none",
-          sm: "none"
-        }
+        border: `1px solid ${previewSurfaceBorder}`,
+        borderRadius: chipRadius,
+        bgcolor: "#ffffff"
       }}
     >
       <Box
@@ -2174,12 +2430,15 @@ function TbmGeneratePage() {
           mb: 0.7
         }}
       >
-        <Typography sx={{ fontSize: 13, fontWeight: 700, color: panelText }}>{label}</Typography>
+        <Typography sx={{ fontSize: 13, fontWeight: 700, color: panelText }}>
+          감독자 서명
+        </Typography>
+
         <Button
           size="small"
           variant="outlined"
-          onClick={() => clearSignature(kind)}
-          disabled={isPreviewProducing || isSavingSignature || !getSignatureValue(kind)}
+          onClick={clearSupervisorSignature}
+          disabled={isPreviewProducing || isSavingSignature || !supervisorSignature}
           sx={{
             minWidth: 54,
             px: 0.8,
@@ -2195,6 +2454,7 @@ function TbmGeneratePage() {
           지우기
         </Button>
       </Box>
+
       <Box
         sx={{
           position: "relative",
@@ -2204,7 +2464,7 @@ function TbmGeneratePage() {
           overflow: "hidden"
         }}
       >
-        {!getSignatureValue(kind) ? (
+        {!supervisorSignature ? (
           <Typography
             sx={{
               position: "absolute",
@@ -2217,15 +2477,16 @@ function TbmGeneratePage() {
               pointerEvents: "none"
             }}
           >
-            이 영역에 직접 서명해 주세요.
+            감독자가 서명해 주세요.
           </Typography>
         ) : null}
+
         <canvas
-          ref={kind === "worker" ? workerSignatureCanvasRef : supervisorSignatureCanvasRef}
-          onPointerDown={(event) => handleSignaturePointerDown(kind, event)}
-          onPointerMove={(event) => handleSignaturePointerMove(kind, event)}
-          onPointerUp={(event) => handleSignaturePointerUp(kind, event)}
-          onPointerCancel={(event) => handleSignaturePointerUp(kind, event)}
+          ref={supervisorSignatureCanvasRef}
+          onPointerDown={handleSupervisorSignaturePointerDown}
+          onPointerMove={handleSupervisorSignaturePointerMove}
+          onPointerUp={handleSupervisorSignaturePointerUp}
+          onPointerCancel={handleSupervisorSignaturePointerUp}
           style={{
             position: "relative",
             width: "100%",
@@ -2254,17 +2515,70 @@ function TbmGeneratePage() {
           {multiple ? " 여러 개 선택할 수 있습니다." : ""}
         </Typography>
 
-        <SelectionChipRow
-          options={question.options}
-          value={value}
-          multiple={multiple}
-          onChange={(nextValue) => {
-            setAdditionalInputs((prev) => ({
-              ...prev,
-              [question.key]: nextValue
-            }));
-          }}
-        />
+        {question.key === "workerCount" ? (
+          <TextField
+            type="text"
+            size="small"
+            fullWidth
+            value={value}
+            onWheel={(event) => {
+              event.currentTarget.querySelector("input")?.blur();
+            }}
+            onChange={(event) => {
+              const nextValue = event.target.value.replace(/\D/g, "");
+
+              if (nextValue === "") {
+                setAdditionalInputs((prev) => ({
+                  ...prev,
+                  workerCount: ""
+                }));
+                return;
+              }
+
+              const numericValue = Number(nextValue);
+              if (!Number.isFinite(numericValue)) return;
+
+              const normalizedValue = Math.min(
+                100,
+                Math.max(1, Math.floor(numericValue))
+              );
+
+              setAdditionalInputs((prev) => ({
+                ...prev,
+                workerCount: String(normalizedValue)
+              }));
+            }}
+            slotProps={{
+              htmlInput: {
+                inputMode: "numeric",
+                pattern: "[0-9]*",
+                autoComplete: "off"
+              }
+            }}
+            placeholder="작업 인원을 숫자로 입력하세요."
+            sx={{
+              ...darkInputSx,
+
+              "& .MuiInputBase-root": {
+                bgcolor: "#ffffff",
+                color: inputText,
+                borderRadius: cardRadius
+              }
+            }}
+          />
+        ) : (
+          <SelectionChipRow
+            options={question.options}
+            value={value}
+            multiple={multiple}
+            onChange={(nextValue) => {
+              setAdditionalInputs((prev) => ({
+                ...prev,
+                [question.key]: nextValue
+              }));
+            }}
+          />
+        )}
 
         {question.key !== "workerCount" && (
           <Box
@@ -3266,17 +3580,37 @@ function TbmGeneratePage() {
                         </Box>
                       ))}
                     </Box>
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: {
-                          xs: "1fr",
-                          sm: "1fr 1fr"
-                        }
-                      }}
-                    >
-                      {renderSignaturePad("worker", "작업자 서명")}
-                      {renderSignaturePad("supervisor", "감독자 서명")}
+                    <Box sx={{ p: 1 }}>
+                      <Typography
+                        sx={{
+                          mb: 1,
+                          fontSize: 14,
+                          fontWeight: 800,
+                          color: panelText
+                        }}
+                      >
+                        작업자 서명 ({workerCount}명)
+                      </Typography>
+
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            sm: "repeat(2, minmax(0, 1fr))",
+                            md: "repeat(3, minmax(0, 1fr))"
+                          },
+                          gap: 1
+                        }}
+                      >
+                        {Array.from({ length: workerCount }, (_, workerIndex) =>
+                          renderWorkerSignaturePad(workerIndex)
+                        )}
+                      </Box>
+
+                      <Box sx={{ mt: 1 }}>
+                        {renderSupervisorSignaturePad()}
+                      </Box>
                     </Box>
                   </Box>
 
