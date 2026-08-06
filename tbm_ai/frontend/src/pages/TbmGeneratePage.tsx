@@ -16,6 +16,7 @@ import Paper from "@mui/material/Paper";
 import Select from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import Tooltip from "@mui/material/Tooltip";
 
 type TbmPreset = {
   workType: string;
@@ -37,6 +38,10 @@ type AdditionalTbmInputs = {
   emergencyNotes: string;
   specialNotes: string;
 };
+
+type FollowUpOtherInputs = Partial<
+  Record<keyof Omit<AdditionalTbmInputs, "specialNotes">, string>
+>;
 
 type FollowUpQuestion = {
   key: keyof Omit<AdditionalTbmInputs, "specialNotes">;
@@ -145,55 +150,179 @@ type TbmSignatureData = {
 const pageBg = "#ffffff";
 const pageGradient = "linear-gradient(180deg, #ffffff 0%, #ffffff 100%)";
 const panelBg = "#ffffff";
-const panelBorder = "#a7ddf4";
+const panelBorder = "#ffb4a2";
 const panelText = "#11344a";
 const mutedText = "#5f7482";
-const accentBlue = "#2563eb";
-const accentBlueHover = "#1d4ed8";
-const actionSky = "#2563eb";
-const actionSkyHover = "#1d4ed8";
+const accentBlue = "#d32f2f"; // 메인 빨강
+const accentBlueHover = "#b71c1c";
+const actionSky = "#ef6c00";        // 버튼은 주황
+const actionSkyHover = "#e65100";
 const inputBg = "#f7fdff";
-const inputBorder = "#9bd8f0";
+const inputBorder = "#ffccbc";
 const inputText = "#11344a";
 const inputPlaceholder = "#7fa0af";
-const previewPanelBg = "#dff5ff";
+const previewPanelBg = "#fff3e0";
 const previewSurfaceBg = "#ffffff";
-const previewSurfaceBorder = "#a8dff4";
+const previewSurfaceBorder = "#ffcc80";
 const previewScriptAccent = "#1d4ed8";
 const previewScriptBorder = "#93c5fd";
 const previewScriptHeaderBg = "#bfdbfe";
-const cardGradientBorder = "#a7ddf4";
-const cardGradient = "linear-gradient(135deg, #ffffff 0%, #e0f7ff 42%, #eff6ff 72%, #ecfeff 100%)";
-const chipGradient = "linear-gradient(165deg, #ffffff 0%, #e0f2fe 48%, #ecfeff 100%)";
+const cardGradientBorder = "#ffb74d";
+const cardGradient =
+  "linear-gradient(135deg, #ffffff 0%, #fff8f2 45%, #fff0eb 100%)";
+const chipGradient =
+  "linear-gradient(160deg, #ffffff 0%, #fff3e0 100%)";
 const cardRadius = 2;
 const chipRadius = 2;
 const surveyCardAccents = [
-  "#2563eb",
-  "#1d4ed8",
-  "#0284c7",
-  "#0ea5e9",
-  "#0369a1",
-  "#3b82f6",
-  "#38bdf8"
+  "#d32f2f",
+  "#e53935",
+  "#ef5350",
+  "#f57c00",
+  "#fb8c00",
+  "#ff7043",
+  "#bf360c",
 ];
 const surveyCardTints = [
-  "#eff6ff",
-  "#e0e7ff",
-  "#e0f2fe",
-  "#f0f9ff",
-  "#e0f2fe",
-  "#dbeafe",
-  "#f0f9ff"
+  "#ffebee",
+  "#fff3e0",
+  "#fff8e1",
+  "#fbe9e7",
+  "#fff5f5",
+  "#fff8f2",
+  "#fef2f2",
 ];
 const selectionPalettes = [
-  { solid: "#2563eb", light: "#dbeafe", shadow: "rgba(37, 99, 235, 0.24)" },
-  { solid: "#1d4ed8", light: "#e0e7ff", shadow: "rgba(29, 78, 216, 0.22)" },
-  { solid: "#0284c7", light: "#e0f2fe", shadow: "rgba(2, 132, 199, 0.22)" },
-  { solid: "#0ea5e9", light: "#f0f9ff", shadow: "rgba(14, 165, 233, 0.22)" },
-  { solid: "#0369a1", light: "#e0f2fe", shadow: "rgba(3, 105, 161, 0.22)" },
-  { solid: "#3b82f6", light: "#eff6ff", shadow: "rgba(59, 130, 246, 0.22)" },
-  { solid: "#38bdf8", light: "#f0f9ff", shadow: "rgba(56, 189, 248, 0.22)" }
+  { solid: "#f9a825", light: "#fff8e1", shadow: "rgba(249,168,37,0.25)" }, // LOW
+  { solid: "#fbc02d", light: "#fffde7", shadow: "rgba(251,192,45,0.25)" }, // MEDIUM
+  { solid: "#ffa000", light: "#fff3e0", shadow: "rgba(255,160,0,0.25)" }, // HIGH
+  { solid: "#d32f2f", light: "#ffebee", shadow: "rgba(211,47,47,0.25)" }, // CRITICAL
+  { solid: "#c62828", light: "#fdecea", shadow: "rgba(198,40,40,0.25)" }, // 여분
 ];
+const getTodayDate = () => {
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const TIME_STEP_MINUTES = 30;
+
+const splitWorkTime = (shift: string): [string, string] => {
+  const [startTime = "00:00", endTime = "00:00"] = shift
+    .split("~")
+    .map((value) => value.trim());
+
+  return [startTime || "00:00", endTime || "00:00"];
+};
+
+const combineWorkTime = (startTime: string, endTime: string): string =>
+  `${startTime} ~ ${endTime}`;
+
+const changeTimeByMinutes = (time: string, amount: number): string => {
+  const [hourText, minuteText] = time.split(":");
+
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return "00:00";
+  }
+
+  const totalMinutes = hour * 60 + minute;
+  const nextTotalMinutes =
+    (totalMinutes + amount + 24 * 60) % (24 * 60);
+
+  const nextHour = Math.floor(nextTotalMinutes / 60);
+  const nextMinute = nextTotalMinutes % 60;
+
+  return `${String(nextHour).padStart(2, "0")}:${String(
+    nextMinute
+  ).padStart(2, "0")}`;
+};
+
+const WORK_TYPE_DESCRIPTIONS: Record<string, string> = {
+  //설비 작업
+  "설비 정비": "설비의 성능 유지 및 고장 수리 작업",
+  "배관 작업": "배관 설치·보수·교체 작업",
+  "설비 설치": "신규 설비 설치 및 시운전 작업",
+  "설비 철거": "기존 설비 해체 및 제거 작업",
+  "설비 교체": "노후·고장 설비 교체 작업",
+  "설비 점검": "설비 이상 여부 및 작동 상태 확인 작업",
+
+  //전기 작업
+  "전기설비 설치": "신규 전기설비 설치 및 시운전 작업",
+  "정비": "전기설비의 성능 유지 및 고장 수리 작업",
+  "점검": "전기설비 이상 여부 및 작동 상태 확인 작업",
+  "배선·결선": "전선 포설 및 전기기기 연결 작업",
+  "교체": "노후·고장 전기설비 교체 작업",
+  "차단·복전": "전원 차단 및 안전한 전원 복구 작업",
+
+  //화기 작업
+  "용접": "금속을 용융하여 접합하는 작업",
+  "용단": "화염 또는 열을 이용해 금속을 절단하는 작업",
+  "연마": "연마 공구를 이용해 표면을 가공하거나 다듬는 작업",
+  "가열": "열을 가해 재료를 가공하거나 성형하는 작업",
+  "화염·스파크 발생 작업": "화염이나 불꽃이 발생하는 작업",
+
+  //운반*양중 작업
+  "중량물 취급": "중량물을 이동·취급하는 작업",
+  "크레인": "크레인을 이용해 자재를 인양·이동하는 작업",
+  "지게차": "지게차를 이용해 자재를 운반·적재하는 작업",
+  "인양": "장비를 이용해 자재나 설비를 들어 올리는 작업",
+  "상·하차": "자재를 차량에 싣거나 내리는 작업",
+  "자재 운반": "자재를 작업 장소로 이동하는 작업",
+
+  //고소 작업
+  "설치 작업": "고소작업대 등을 이용해 설비·구조물을 설치하는 작업",
+  "해체·철거 작업": "고소 작업 환경에서 설비·구조물을 해체하거나 철거하는 작업",
+  "점검·검사 작업": "고소 작업 환경에서 설비 및 구조물의 이상 여부를 확인하는 작업",
+  "정비·보수 작업": "고소 작업 환경에서 설비를 정비하거나 보수하는 작업",
+  "도장·방수 작업": "고소 작업 환경에서 도장 및 방수 시공을 수행하는 작업",
+  "지붕 작업": "지붕 위에서 설치·보수·점검 등을 수행하는 작업",
+
+  //밀폐공간 작업
+  "맨홀": "맨홀 내부에서 점검·보수 등을 수행하는 작업",
+  "탱크": "탱크 내부에서 점검·청소·정비 등을 수행하는 작업",
+  "용기(Vessel)": "용기 내부에서 점검·정비·세척 등을 수행하는 작업",
+  "피트(Pit)": "피트 내부에서 점검·보수 등을 수행하는 작업",
+  "배관 내부 출입": "배관 내부에 출입하여 점검·정비 등을 수행하는 작업",
+  "덕트 내부 작업": "덕트 내부에서 점검·청소·보수 등을 수행하는 작업",
+  "암거(지하 공동구)": "지하 공동구 내부에서 점검·설비 작업 등을 수행하는 작업",
+
+  //굴착*토목 작업
+  "굴착": "토사를 굴착하여 작업 공간을 확보하는 작업",
+  "흙막이": "굴착면 붕괴 방지를 위해 흙막이 구조물을 설치하는 작업",
+  "매설물 주변 작업": "지하 매설물 주변에서 안전하게 굴착·보수하는 작업",
+  "되메우기": "굴착 후 토사를 되메워 원상 복구하는 작업",
+  "지반 다짐": "지반을 다져 안정성과 지지력을 확보하는 작업",
+
+  //화학물질 작업
+  "유해화학물질 취급": "유해화학물질을 안전하게 취급·관리하는 작업",
+  "주입·충전": "화학물질을 설비나 용기에 주입·충전하는 작업",
+  "배출": "화학물질을 안전 절차에 따라 배출하는 작업",
+  "세정": "화학물질을 이용하거나 제거하여 설비를 세척하는 작업",
+  "샘플링": "화학물질 시료를 채취하여 분석하는 작업",
+  "누출 대응": "화학물질 누출 발생 시 확산 방지 및 초기 조치를 수행하는 작업",
+
+  //생산*공정 작업
+  "공정 운전": "생산설비를 정상 운전하여 제품을 생산하는 작업",
+  "공정 가동": "생산공정을 시작하고 설비를 가동하는 작업",
+  "공정 정지": "생산공정을 안전 절차에 따라 정지하는 작업",
+  "공정 전환": "생산 품목이나 운전 조건을 변경하는 작업",
+  "이상상태 대응": "공정 이상 발생 시 안전하게 조치하는 작업",
+  "공정 점검·순찰": "생산공정과 설비의 이상 여부를 점검하는 작업",
+
+  //검사*계측 작업
+  "비파괴검사": "설비를 손상시키지 않고 결함을 검사하는 작업",
+  "계측기 점검": "계측기의 이상 여부와 작동 상태를 확인하는 작업",
+  "압력·누설시험": "설비의 압력 유지 및 누설 여부를 확인하는 작업",
+  "가스측정": "작업 환경의 가스 농도를 측정하는 작업",
+  "계기 교정": "계측기의 측정 정확도를 보정하는 작업",
+};
 
 const DEFAULT_AUTO_PROMPT = `TBM 리더 멘트를 아래 9단계 현장 진행 형식으로 작성합니다.
 ### 인사
@@ -222,10 +351,11 @@ const INITIAL_PRESET: TbmPreset = {
   workType: "",
   permitType: "",
   risk: "",
-  shift: "",
-  workDate: "",
+  shift: "00:00 ~ 00:00",
+  workDate: getTodayDate(),
   location: ""
 };
+
 const INITIAL_ADDITIONAL_INPUTS: AdditionalTbmInputs = {
   workerCount: "",
   supervisorName: "",
@@ -237,6 +367,8 @@ const INITIAL_ADDITIONAL_INPUTS: AdditionalTbmInputs = {
   emergencyNotes: "",
   specialNotes: ""
 };
+
+const INITIAL_FOLLOW_UP_OTHER_INPUTS: FollowUpOtherInputs = {};
 
 type ScriptTemplateItem = {
   title: string;
@@ -388,6 +520,19 @@ const normalizeRiskKey = (risk: string): string => {
   return "LOW";
 };
 
+const getWorkShiftDriverValue = (shift: string): string => {
+  const [startTime] = splitWorkTime(shift);
+  const startHour = Number(startTime.split(":")[0]);
+
+  if (Number.isNaN(startHour)) {
+    return "주간";
+  }
+
+  return startHour >= 18 || startHour < 6
+    ? "야간"
+    : "주간";
+};
+
 const fillSurveyHelperText = (template: string, preset: TbmPreset): string =>
   template
     .replace(/\{workType\}/g, preset.workType || "작업종류")
@@ -411,7 +556,14 @@ const pickSurveyDriverCandidates = (
     return [...workTypeDriver, { driverType: "risk", driverValue: normalizeRiskKey(preset.risk) }];
   }
   if (questionKey === "emergencyNotes") {
-    return [{ driverType: "shift", driverValue: preset.shift }];
+    return [
+      {
+        driverType: "shift",
+        driverValue: getWorkShiftDriverValue(
+          preset.shift
+        )
+      }
+    ];
   }
   return [{ driverType: "default", driverValue: "default" }];
 };
@@ -453,9 +605,16 @@ const buildFollowUpQuestions = (
   });
 
 const getShiftLabelFE = (shift: string): string => {
+  if (!shift) return "작업 전";
+
+  if (shift.includes("~")) {
+    return `${shift} 작업 전`;
+  }
+
   if (shift === "야간") return "야간";
   if (shift === "주간") return "주간";
-  return shift || "작업 전";
+
+  return shift;
 };
 
 const buildScriptSectionFallback = (title: string, preset: TbmPreset): string => {
@@ -1020,6 +1179,7 @@ type SelectionChipRowProps = {
   onChange: (value: string) => void;
   multiple?: boolean;
   emptyMessage?: string;
+  descriptions?: Record<string, string>;
 };
 
 function SelectionChipRow({
@@ -1027,7 +1187,8 @@ function SelectionChipRow({
   value,
   onChange,
   multiple = false,
-  emptyMessage
+  emptyMessage,
+  descriptions = {}
 }: SelectionChipRowProps) {
   if (options.length === 0) {
     return (
@@ -1066,50 +1227,57 @@ function SelectionChipRow({
         };
 
         return (
-          <Button
+          <Tooltip
             key={item}
-            type="button"
-            aria-pressed={checked}
-            onClick={() => onChange(nextValue())}
-            disableRipple
-            sx={{
-              m: 0,
-              px: 1.45,
-              py: 0.8,
-              minWidth: "fit-content",
-              minHeight: 40,
-              borderRadius: chipRadius,
-              border: `1px solid ${checked ? palette.solid : `${palette.solid}55`}`,
-              background: checked
-                ? `linear-gradient(145deg, ${palette.solid} 0%, ${palette.solid}d9 100%)`
-                : `linear-gradient(145deg, #ffffff 0%, ${palette.light} 100%)`,
-              boxShadow: checked
-                ? `0 10px 22px ${palette.shadow}, inset 0 1px 0 rgba(255, 255, 255, 0.35)`
-                : "0 4px 12px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
-              transition: "all 0.18s ease",
-              flexShrink: 0,
-
-              "&:hover": {
-                borderColor: palette.solid,
-                boxShadow: `0 8px 18px ${palette.shadow}`,
-                transform: "translateY(-1px)"
-              },
-
-              fontSize: 14,
-              fontWeight: checked ? 700 : 600,
-              color: checked ? "#ffffff" : panelText,
-              whiteSpace: "nowrap",
-              textTransform: "none",
-
-              "@media (max-width: 425px)": {
-                px: 1.05,
-                py: 0.7,
-                fontSize: 13
-              }
-            }}
+            title={descriptions[item] ?? ""}
+            arrow
+            placement="top"
+            disableHoverListener={!descriptions[item]}
           >
-            {item}
-          </Button>
+            <Button
+              type="button"
+              aria-pressed={checked}
+              onClick={() => onChange(nextValue())}
+              disableRipple
+              sx={{
+                m: 0,
+                px: 1.45,
+                py: 0.8,
+                minWidth: "fit-content",
+                minHeight: 40,
+                borderRadius: chipRadius,
+                border: `1px solid ${checked ? palette.solid : `${palette.solid}55`}`,
+                background: checked
+                  ? `linear-gradient(145deg, ${palette.solid} 0%, ${palette.solid}d9 100%)`
+                  : `linear-gradient(145deg, #ffffff 0%, ${palette.light} 100%)`,
+                boxShadow: checked
+                  ? `0 10px 22px ${palette.shadow}, inset 0 1px 0 rgba(255, 255, 255, 0.35)`
+                  : "0 4px 12px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9)",
+                transition: "all 0.18s ease",
+                flexShrink: 0,
+
+                "&:hover": {
+                  borderColor: palette.solid,
+                  boxShadow: `0 8px 18px ${palette.shadow}`,
+                  transform: "translateY(-1px)"
+                },
+
+                fontSize: 14,
+                fontWeight: checked ? 700 : 600,
+                color: checked ? "#ffffff" : panelText,
+                whiteSpace: "nowrap",
+                textTransform: "none",
+
+                "@media (max-width: 425px)": {
+                  px: 1.05,
+                  py: 0.7,
+                  fontSize: 13
+                }
+              }}
+            >
+              {item}
+            </Button>
+          </Tooltip>
         );
       })}
     </Box>
@@ -1122,13 +1290,42 @@ type SurveyFieldHeaderProps = {
 };
 
 function SurveyFieldHeader({ index, label }: SurveyFieldHeaderProps) {
+  const riskGuide =
+    "• LOW: 경미한 부상   • MEDIUM: 부상 가능   • HIGH: 중대재해   • CRITICAL: 치명적 사고";
+
   return (
-    <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        mb: 1,
+      }}
+    >
       <Typography
-        sx={{ fontSize: 13.5, fontWeight: 800, color: panelText, letterSpacing: "-0.01em" }}
+        sx={{
+          fontSize: 13.5,
+          fontWeight: 800,
+          color: panelText,
+          letterSpacing: "-0.01em",
+        }}
       >
         {index}. {label}
       </Typography>
+
+      {label === "위험등급" && (
+        <Typography
+          sx={{
+            mt: 0.3,
+            fontSize: 11.5,
+            color: mutedText,
+            fontWeight: 500,
+            lineHeight: 1.4,
+          }}
+        >
+          {riskGuide}
+        </Typography>
+      )}
     </Box>
   );
 }
@@ -1250,6 +1447,7 @@ function WorkTypeCategoryField({
             options={subOptions}
             value={selectedWorkType}
             onChange={onWorkTypeChange}
+            descriptions={WORK_TYPE_DESCRIPTIONS}
             emptyMessage="등록된 세부 작업종류가 없습니다."
           />
         </Box>
@@ -1269,6 +1467,8 @@ function TbmGeneratePage() {
   const [preset, setPreset] = useState<TbmPreset>(INITIAL_PRESET);
   const [additionalInputs, setAdditionalInputs] =
     useState<AdditionalTbmInputs>(INITIAL_ADDITIONAL_INPUTS);
+  const [followUpOtherInputs, setFollowUpOtherInputs] =
+    useState<FollowUpOtherInputs>(INITIAL_FOLLOW_UP_OTHER_INPUTS);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedText, setGeneratedText] = useState("");
@@ -1318,7 +1518,17 @@ function TbmGeneratePage() {
   const followUpReady =
     presetReady &&
     followUpQuestions.length > 0 &&
-    followUpQuestions.every((question) => additionalInputs[question.key].trim());
+    followUpQuestions.every((question) => {
+      const selectedValue = additionalInputs[question.key].trim();
+      const otherValue = (followUpOtherInputs[question.key] ?? "").trim();
+
+      if (question.key === "workerCount") {
+        return selectedValue.length > 0;
+      }
+
+      return selectedValue.length > 0 || otherValue.length > 0;
+    });
+
   const readyToGenerate = followUpReady;
 
   const primaryScriptText = extractPrimaryScriptText(generatedText);
@@ -1374,7 +1584,7 @@ function TbmGeneratePage() {
     : preset.workDate || "____년 __월 __일";
   const previewShift = isPreviewProducing
     ? PRODUCTION_PLACEHOLDER
-    : preset.shift || "근무조 미선택";
+    : preset.shift || "작업시간 미입력";
   const previewWorkName = isPreviewProducing
     ? PRODUCTION_PLACEHOLDER
     : (preset.workType || "작업종류 미선택") + " / " + (preset.permitType || "허가유형 미선택");
@@ -1394,9 +1604,26 @@ function TbmGeneratePage() {
   }));
 
   const additionalOptionLines = [
-    ...followUpQuestions.map(
-      (question) => [question.outputLabel, additionalInputs[question.key]] as const
-    ),
+    ...followUpQuestions.flatMap((question) => {
+      const selectedValue = additionalInputs[question.key].trim();
+      const otherValue =
+        question.key === "workerCount"
+          ? ""
+          : (followUpOtherInputs[question.key] ?? "").trim();
+
+      const lines: Array<readonly [string, string]> = [];
+
+      if (selectedValue) {
+        lines.push([question.outputLabel, selectedValue] as const);
+      }
+
+      if (otherValue) {
+        lines.push([`${question.outputLabel} 기타`, otherValue] as const);
+      }
+
+      return lines;
+    }),
+
     ["특이사항", additionalInputs.specialNotes] as const
   ]
     .map(([label, value]) => [label, value.trim()] as const)
@@ -2016,8 +2243,9 @@ function TbmGeneratePage() {
     index: number,
     question: FollowUpQuestion
   ) => {
-    const multiple = isMultiSelectQuestion(question.key);
     const value = additionalInputs[question.key];
+    const otherValue = followUpOtherInputs[question.key] ?? "";
+    const multiple = isMultiSelectQuestion(question.key);
 
     return (
       <SurveyCard index={index} label={question.label}>
@@ -2037,6 +2265,60 @@ function TbmGeneratePage() {
             }));
           }}
         />
+
+        {question.key !== "workerCount" && (
+          <Box
+            sx={{
+              mt: 1.2,
+              pt: 1.2,
+              borderTop: `1px dashed ${panelBorder}`
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: mutedText,
+                mb: 0.7
+              }}
+            >
+              기타(직접 입력)
+            </Typography>
+
+            <TextField
+              size="small"
+              fullWidth
+              multiline
+              minRows={3}
+              maxRows={8}
+              value={otherValue}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+
+                setFollowUpOtherInputs((prev) => ({
+                  ...prev,
+                  [question.key]: nextValue
+                }));
+              }}
+              placeholder={`${question.label}에 해당하는 기타 내용을 입력하세요.
+  여러 줄로 작성할 수 있습니다.`}
+              sx={{
+                ...darkInputSx,
+
+                "& .MuiInputBase-root": {
+                  bgcolor: "#ffffff",
+                  color: inputText,
+                  borderRadius: cardRadius,
+                  alignItems: "flex-start"
+                },
+
+                "& textarea": {
+                  lineHeight: 1.6
+                }
+              }}
+            />
+          </Box>
+        )}
       </SurveyCard>
     );
   };
@@ -2213,18 +2495,146 @@ function TbmGeneratePage() {
                 options={riskOptions}
               />
 
-              <SurveyCheckboxField
-                index={3}
-                label="작업시간"
-                value={preset.shift}
-                onChange={(value) => {
-                  setPreset((prev) => ({
-                    ...prev,
-                    shift: value
-                  }));
-                }}
-                options={workShiftOptions}
-              />
+              <SurveyCard index={3} label="작업시간">
+                {(() => {
+                  const [startTime, endTime] = splitWorkTime(preset.shift);
+
+                  const updateWorkTime = (
+                    type: "start" | "end",
+                    value: string
+                  ) => {
+                    const nextStartTime =
+                      type === "start" ? value : startTime;
+
+                    const nextEndTime =
+                      type === "end" ? value : endTime;
+
+                    setPreset((prev) => ({
+                      ...prev,
+                      shift: combineWorkTime(
+                        nextStartTime,
+                        nextEndTime
+                      )
+                    }));
+                  };
+
+                  const handleTimeWheel = (
+                    event: React.WheelEvent<HTMLDivElement>,
+                    type: "start" | "end"
+                  ) => {
+                    event.preventDefault();
+
+                    const currentTime =
+                      type === "start" ? startTime : endTime;
+
+                    const amount =
+                      event.deltaY < 0
+                        ? TIME_STEP_MINUTES
+                        : -TIME_STEP_MINUTES;
+
+                    updateWorkTime(
+                      type,
+                      changeTimeByMinutes(currentTime, amount)
+                    );
+                  };
+
+                  return (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.2,
+
+                        "@media (max-width: 425px)": {
+                          gap: 0.7
+                        }
+                      }}
+                    >
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          sx={{
+                            mb: 0.5,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: mutedText
+                          }}
+                        >
+                          시작 시간
+                        </Typography>
+
+                        <TextField
+                          size="small"
+                          type="time"
+                          value={startTime}
+                          onChange={(event) => {
+                            updateWorkTime(
+                              "start",
+                              event.target.value
+                            );
+                          }}
+                          onWheel={(event) => {
+                            handleTimeWheel(event, "start");
+                          }}
+                          slotProps={{
+                            htmlInput: {
+                              step: TIME_STEP_MINUTES * 60
+                            }
+                          }}
+                          fullWidth
+                          sx={darkInputSx}
+                        />
+                      </Box>
+
+                      <Typography
+                        sx={{
+                          mt: 2.7,
+                          fontSize: 17,
+                          fontWeight: 800,
+                          color: panelText,
+                          flexShrink: 0
+                        }}
+                      >
+                        ~
+                      </Typography>
+
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          sx={{
+                            mb: 0.5,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: mutedText
+                          }}
+                        >
+                          종료 시간
+                        </Typography>
+
+                        <TextField
+                          size="small"
+                          type="time"
+                          value={endTime}
+                          onChange={(event) => {
+                            updateWorkTime(
+                              "end",
+                              event.target.value
+                            );
+                          }}
+                          onWheel={(event) => {
+                            handleTimeWheel(event, "end");
+                          }}
+                          slotProps={{
+                            htmlInput: {
+                              step: TIME_STEP_MINUTES * 60
+                            }
+                          }}
+                          fullWidth
+                          sx={darkInputSx}
+                        />
+                      </Box>
+                    </Box>
+                  );
+                })()}
+              </SurveyCard>
 
               <SurveyCard index={4} label="작업일자">
                 <TextField
