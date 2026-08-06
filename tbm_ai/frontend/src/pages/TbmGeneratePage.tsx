@@ -51,7 +51,7 @@ type FollowUpQuestion = {
   options: string[];
 };
 
-const MULTI_SELECT_QUESTION_KEYS = new Set<FollowUpQuestion["key"]>(["equipment", "requiredPpe",  "siteHazards", "safetyMeasures",  "emergencyNotes",]);
+const MULTI_SELECT_QUESTION_KEYS = new Set<FollowUpQuestion["key"]>(["equipment", "requiredPpe", "siteHazards", "safetyMeasures", "emergencyNotes",]);
 const MULTI_SELECT_SEPARATOR = ", ";
 
 const isMultiSelectQuestion = (key: FollowUpQuestion["key"]): boolean =>
@@ -346,7 +346,18 @@ TBM 대본 어투는 아래 권장 표현을 기준으로 작성합니다.
 "조치" 단계는 보호구, 작업허가, 통제구역, LOTO 등 필요한 조치를 확인합니다.
 "사례" 단계는 오늘 작업과 유사한 사고사례와 교훈을 짧게 전달합니다.
 "의견" 단계는 작업자가 의견이나 질문을 말할 수 있도록 진행합니다.
-"지적확인" 단계는 선창-후창 구호 형식을 포함하되, 감탄 구호는 넣지 않습니다.`;
+"지적확인" 단계는 선창-후창 구호 형식을 포함하되, 감탄 구호는 넣지 않습니다.
+
+입력 정보 사용 규칙:
+- 아래의 "추가 현장 입력"에 실제로 기재된 선택 항목과 기타 직접 입력 내용만 사용합니다.
+- 사용자가 선택하거나 직접 입력하지 않은 장비, 보호구, 위험요인, 안전조치 및 비상대응 항목을 임의로 추가하지 않습니다.
+- 다른 작업종류에 해당하는 위험요인이나 안전조치를 일반적인 예시로 추가하지 않습니다.
+- 특히 굴착, 화기, 밀폐공간, 고소, 운반 작업 관련 항목은 사용자가 입력한 경우에만 작성합니다.
+- 기타(직접 입력) 내용은 사용자가 현장에서 직접 지정한 정보이므로 반드시 관련 단계에 빠짐없이 반영합니다.
+- 같은 내용을 표현만 바꾸어 여러 번 반복하지 않습니다.
+- 위험 단계에는 입력된 주요 위험요인만 작성합니다.
+- 조치 단계에는 입력된 개인보호구와 필수 안전조치만 작성합니다.
+- 비상 단계에는 입력된 비상대피·연락 기준만 작성합니다.`;
 const INITIAL_PRESET: TbmPreset = {
   workType: "",
   permitType: "",
@@ -793,6 +804,173 @@ const toPoliteControlSentence = (value: string): string => {
   if (controlMap[phrase]) return controlMap[phrase];
   if (/(확인|착용|배치|비치|제거|실시)$/.test(phrase)) return `${phrase}해 주시기 바랍니다.`;
   return `${phrase}을 확인해 주시기 바랍니다.`;
+};
+
+const splitDirectInputLines = (value: string): string[] =>
+  value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+const ensureSentenceEnding = (value: string): string => {
+  const trimmed = value.trim();
+
+  if (!trimmed) return "";
+
+  if (/[.!?]$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `${trimmed}.`;
+};
+
+const buildDirectInputContent = (
+  key: keyof AdditionalTbmInputs,
+  selectedValue: string,
+  otherValue: string
+): string => {
+  const selectedItems =
+    isMultiSelectQuestion(
+      key as FollowUpQuestion["key"]
+    )
+      ? parseMultiSelectValue(selectedValue)
+      : selectedValue.trim()
+        ? [selectedValue.trim()]
+        : [];
+
+  const otherItems = splitDirectInputLines(otherValue);
+
+  switch (key) {
+    case "equipment": {
+      const selectedSentence =
+        selectedItems.length > 0
+          ? `사용 장비와 공구는 ${selectedItems.join(", ")}입니다.`
+          : "";
+
+      const otherSentences = otherItems.map(
+        (item) => `추가 장비와 공구로 ${item}을 사용합니다.`
+      );
+
+      return [selectedSentence, ...otherSentences]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    case "requiredPpe": {
+      const selectedSentence =
+        selectedItems.length > 0
+          ? `오늘 작업에는 ${selectedItems.join(", ")} 착용이 필요합니다.`
+          : "";
+
+      const otherSentences = otherItems.map(
+        (item) => `${item}도 빠짐없이 착용해 주시기 바랍니다.`
+      );
+
+      return [selectedSentence, ...otherSentences]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    case "detailedWork":
+      return otherItems
+        .concat(selectedItems)
+        .map(ensureSentenceEnding)
+        .filter(Boolean)
+        .join("\n");
+
+    case "siteHazards": {
+      const selectedSentence =
+        selectedItems.length > 0
+          ? `오늘 작업의 주요 위험요인은 ${selectedItems.join(", ")}입니다.`
+          : "";
+
+      const otherSentences = otherItems.map(ensureSentenceEnding);
+
+      return [selectedSentence, ...otherSentences]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    case "safetyMeasures": {
+      const selectedSentence =
+        selectedItems.length > 0
+          ? `오늘 적용할 필수 안전조치는 ${selectedItems.join(", ")}입니다.`
+          : "";
+
+      const otherSentences = otherItems.map(ensureSentenceEnding);
+
+      return [selectedSentence, ...otherSentences]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    case "emergencyNotes": {
+      const selectedSentence =
+        selectedItems.length > 0
+          ? `오늘의 비상대피 및 연락 기준은 ${selectedItems.join(", ")}입니다.`
+          : "";
+
+      const otherSentences = otherItems.map(ensureSentenceEnding);
+
+      return [selectedSentence, ...otherSentences]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    default:
+      return otherItems
+        .concat(selectedItems)
+        .map(ensureSentenceEnding)
+        .filter(Boolean)
+        .join("\n");
+  }
+};
+
+const buildRequiredSectionInput = (
+  sectionTitle: string,
+  additionalInputs: AdditionalTbmInputs,
+  followUpOtherInputs: FollowUpOtherInputs
+): string => {
+  const build = (key: keyof AdditionalTbmInputs): string =>
+    buildDirectInputContent(
+      key,
+      additionalInputs[key] ?? "",
+      key === "specialNotes"
+        ? ""
+        : followUpOtherInputs[
+        key as keyof Omit<AdditionalTbmInputs, "specialNotes">
+        ] ?? ""
+    );
+
+  switch (sectionTitle) {
+    case "작업":
+      return mergeUniqueLines(
+        build("equipment"),
+        build("detailedWork")
+      );
+
+    case "위험":
+      return build("siteHazards");
+
+    case "조치":
+      return mergeUniqueLines(
+        build("requiredPpe"),
+        build("safetyMeasures")
+      );
+
+    case "의견":
+      return additionalInputs.specialNotes
+        .split(/\r?\n/)
+        .map(ensureSentenceEnding)
+        .filter(Boolean)
+        .join("\n");
+
+    case "비상":
+      return build("emergencyNotes");
+
+    default:
+      return "";
+  }
 };
 
 const normalizeControlListTone = (value: string): string => {
@@ -1560,9 +1738,36 @@ function TbmGeneratePage() {
       } else if (enrichedContent.replace(/\s+/g, "").length < 80 && fallbackContent) {
         enrichedContent = mergeUniqueLines(enrichedContent, fallbackContent);
       }
-      const normalized = normalizeScenarioSectionContent(section.title, enrichedContent, preset);
-      const deduped = cleanPreviewContent(collapseContextRestatements(normalized, preset));
-      return splitSentencesIntoLines(deduped);
+      const normalized = normalizeScenarioSectionContent(
+        section.title,
+        enrichedContent,
+        preset
+      );
+
+      // 해당 단계에 반드시 포함해야 하는 선택값 및 기타 직접 입력
+      const requiredInputContent = buildRequiredSectionInput(
+        section.title,
+        additionalInputs,
+        followUpOtherInputs
+      );
+
+      // AI 생성 내용 뒤에 사용자 입력 내용을 확실하게 병합
+      const contentWithRequiredInputs = requiredInputContent
+        ? mergeUniqueLines(normalized, requiredInputContent)
+        : normalized;
+
+      // 먼저 한 줄에 붙어 있는 문장들을 문장별로 분리
+      const sentenceSeparated = splitSentencesIntoLines(
+        collapseContextRestatements(
+          contentWithRequiredInputs,
+          preset
+        )
+      );
+
+      // 문장별로 줄이 나뉜 상태에서 중복 제거
+      const deduped = cleanPreviewContent(sentenceSeparated);
+
+      return deduped;
     })()
   }));
   const scriptSentenceKeys = scriptSections.flatMap((section) =>
@@ -1615,11 +1820,28 @@ function TbmGeneratePage() {
 
   const additionalOptionLines = [
     ...followUpQuestions.flatMap((question) => {
-      const selectedValue = additionalInputs[question.key].trim();
+      const rawSelectedValue = additionalInputs[question.key].trim();
+
       const otherValue =
         question.key === "workerCount"
           ? ""
           : (followUpOtherInputs[question.key] ?? "").trim();
+
+      let selectedValue = "";
+
+      if (question.key === "workerCount") {
+        selectedValue = rawSelectedValue;
+      } else if (isMultiSelectQuestion(question.key)) {
+        // 현재 질문의 선택지에 실제로 존재하는 값만 전송
+        selectedValue = parseMultiSelectValue(rawSelectedValue)
+          .filter((value) => question.options.includes(value))
+          .join(MULTI_SELECT_SEPARATOR);
+      } else {
+        // 단일 선택도 현재 선택지에 존재하는 값만 전송
+        selectedValue = question.options.includes(rawSelectedValue)
+          ? rawSelectedValue
+          : "";
+      }
 
       const lines: Array<readonly [string, string]> = [];
 
@@ -1628,7 +1850,10 @@ function TbmGeneratePage() {
       }
 
       if (otherValue) {
-        lines.push([`${question.outputLabel} 기타`, otherValue] as const);
+        lines.push([
+          `${question.outputLabel} 기타`,
+          otherValue
+        ] as const);
       }
 
       return lines;
@@ -1636,7 +1861,10 @@ function TbmGeneratePage() {
 
     ["특이사항", additionalInputs.specialNotes] as const
   ]
-    .map(([label, value]) => [label, value.trim()] as const)
+    .map(([label, value]) => [
+      label,
+      value.trim()
+    ] as const)
     .filter(([, value]) => value.length > 0)
     .map(([label, value]) => `${label}: ${value}`);
 
@@ -2185,10 +2413,36 @@ function TbmGeneratePage() {
       const next = { ...prev };
 
       for (const question of followUpQuestions) {
-        const selectedValue = next[question.key].trim();
-        if (selectedValue && !question.options.includes(selectedValue)) {
-          next[question.key] = "";
-          changed = true;
+        const currentValue = next[question.key].trim();
+
+        if (!currentValue) {
+          continue;
+        }
+
+        // 작업 인원은 선택지가 아니라 직접 입력값이므로 검사하지 않음
+        if (question.key === "workerCount") {
+          continue;
+        }
+
+        if (isMultiSelectQuestion(question.key)) {
+          // 다중 선택값을 각각 분리한 후
+          // 현재 화면에서 선택 가능한 항목만 남김
+          const validValues = parseMultiSelectValue(currentValue).filter(
+            (value) => question.options.includes(value)
+          );
+
+          const normalizedValue = validValues.join(MULTI_SELECT_SEPARATOR);
+
+          if (normalizedValue !== currentValue) {
+            next[question.key] = normalizedValue;
+            changed = true;
+          }
+        } else {
+          // 단일 선택 항목
+          if (!question.options.includes(currentValue)) {
+            next[question.key] = "";
+            changed = true;
+          }
         }
       }
 
@@ -2270,6 +2524,15 @@ function TbmGeneratePage() {
     setIsGenerating(true);
     setErrorMessage("");
     try {
+      console.log("===== TBM 생성 요청 확인 =====");
+      console.log("작업종류:", preset.workType);
+      console.log("주요 장비/공구:", additionalInputs.equipment);
+      console.log("개인보호구:", additionalInputs.requiredPpe);
+      console.log("주요 위험요인:", additionalInputs.siteHazards);
+      console.log("필수 안전조치:", additionalInputs.safetyMeasures);
+      console.log("비상대피/연락 기준:", additionalInputs.emergencyNotes);
+      console.log("서버 전송 options:", additionalOptionLines);
+
       const response = await apiFetch(`/tbm/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
