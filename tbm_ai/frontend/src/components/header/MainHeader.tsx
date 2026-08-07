@@ -609,11 +609,13 @@ function MainHeader() {
                 component={menu.path ? RouterLink : "button"}
                 to={menu.path || undefined}
                 onClick={() => setMobileMenuOpen(false)}
-                sx={{
-                  py: 1.1,
+                sx={{ 
+                  py: 1.1, 
                   px: 2,
-                  color: active ? headerText : headerText,
-                  bgcolor: active ? headerAccentSoft : "transparent"
+                  color: headerText,
+                  bgcolor: active ? headerAccentSoft : "transparent",
+                  "&:hover": { bgcolor: headerAccentSoft },
+                  "&.Mui-focusVisible": { bgcolor: headerAccentSoft }
                 }}
               >
                 <Typography sx={{ fontSize: 14, fontWeight: active ? 800 : 700 }}>
