@@ -23,9 +23,9 @@ const headerGradient = "linear-gradient(90deg, #ffffff 0%, #f8faf9 68%, #edf5f1 
 const headerBorder = "#cdd7da";
 const headerText = "#172126";
 const headerMutedText = "#66757d";
-const headerAccent = "#1687b8";
-const headerAccentSky = "#55bfe8";
-const headerAccentSoft = "#e3f5fc";
+const headerAccent = "#ef6c00";
+const headerAccentSky = "#ef6c00";
+const headerAccentSoft = "#fff3e0";
 const headerHeight = 44;
 
 type HeaderNotification = {
@@ -310,10 +310,11 @@ function MainHeader() {
                 width: 14,
                 height: 16,
                 clipPath: "polygon(50% 0%, 93% 15%, 93% 70%, 50% 100%, 7% 70%, 7% 15%)",
-                background: "linear-gradient(160deg, #1687b8 0%, #55bfe8 100%)",
+                background:
+                  "linear-gradient(160deg, #ef6c00 0%, #d32f2f 100%)",
+                boxShadow: "0 6px 14px rgba(239,108,0,0.24)",
                 display: "grid",
-                placeItems: "center",
-                boxShadow: "0 6px 14px rgba(42, 167, 214, 0.24)"
+                placeItems: "center"
               }}
             >
               <Typography sx={{ color: "#ffffff", fontSize: 6, fontWeight: 800, lineHeight: 1 }}>
@@ -392,8 +393,8 @@ function MainHeader() {
                   whiteSpace: "nowrap",
                   gap: 0.25,
                   textDecoration: "none",
-                  bgcolor: active ? headerAccentSoft : "transparent",
-                  "&:hover": { bgcolor: "#edf8fd", color: headerText }
+                  bgcolor: active ? "#fffaf7" : "transparent",
+                  "&:hover": { bgcolor: "#fff3e0", color: headerText }
                 }}
               >
                 {menu.label}
@@ -568,10 +569,11 @@ function MainHeader() {
               width: 16,
               height: 18,
               clipPath: "polygon(50% 0%, 93% 15%, 93% 70%, 50% 100%, 7% 70%, 7% 15%)",
-              background: "linear-gradient(160deg, #1687b8 0%, #55bfe8 100%)",
+              background:
+                "linear-gradient(160deg, #ef6c00 0%, #d32f2f 100%)",
+              boxShadow: "0 6px 14px rgba(239,108,0,0.24)",
               display: "grid",
-              placeItems: "center",
-              boxShadow: "0 6px 14px rgba(42, 167, 214, 0.24)"
+              placeItems: "center"
             }}
           >
             <Typography sx={{ color: "#ffffff", fontSize: 6, fontWeight: 800, lineHeight: 1 }}>

@@ -68,6 +68,18 @@ const panelText = "#11344a";
 const mutedText = "#5f7482";
 const accentCyan = "#d32f2f";
 const cardGradient = "linear-gradient(180deg, #ffffff 0%, #fffaf7 100%)";
+const selectMenuPaperSx = {
+  bgcolor: "#ffffff",
+  color: panelText,
+  border: `1px solid ${panelBorder}`,
+  borderRadius: 0,
+  boxShadow: "0 8px 20px rgba(17, 52, 74, 0.16)",
+
+  "& .MuiMenuItem-root": { color: panelText, fontSize: 13, minHeight: 36 },
+  "& .MuiMenuItem-root:hover": { bgcolor: "#fff3e0" },
+  "& .MuiMenuItem-root.Mui-selected": { bgcolor: "#fff3e0", color: panelText, fontWeight: 700 },
+  "& .MuiMenuItem-root.Mui-selected:hover": { bgcolor: "#fff3e0" }
+};
 
 const tableHeadCellSx = {
   fontWeight: 700,
@@ -748,6 +760,9 @@ function DashboardPage() {
             <Select
               value={selectedPlant}
               onChange={(event) => setSelectedPlant(event.target.value)}
+              MenuProps={{
+                slotProps: { paper: { sx: selectMenuPaperSx } }
+              }}
               sx={{
                 width: "100%",
                 height: 36,
@@ -755,7 +770,11 @@ function DashboardPage() {
                 fontSize: 13,
                 bgcolor: "#ffffff",
                 color: panelText,
-                border: `1px solid ${panelBorder}`
+
+                "& .MuiOutlinedInput-notchedOutline": { borderColor: panelBorder },
+                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#ef6c00" },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#ef6c00", borderWidth: "2px" },
+                "& .MuiSelect-icon": { color: panelText }
               }}
             >
               {siteOptions.map((site) => (
@@ -772,13 +791,18 @@ function DashboardPage() {
             onChange={(event) => setSelectedDate(event.target.value)}
             sx={{
               minWidth: 140,
-              "& .MuiInputBase-root": {
+              "& .MuiOutlinedInput-root": {
                 height: 36,
                 fontWeight: 600,
                 fontSize: 13,
                 bgcolor: "#ffffff",
                 color: panelText,
-                border: `1px solid ${panelBorder}`
+                "& .MuiOutlinedInput-notchedOutline": { borderColor: panelBorder },
+                "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#ef6c00" },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "#ef6c00",
+                  borderWidth: "2px"
+                }
               }
             }}
           />
