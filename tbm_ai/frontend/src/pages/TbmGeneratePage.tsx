@@ -17,6 +17,9 @@ import Select from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Tooltip from "@mui/material/Tooltip";
+import IconButton from "@mui/material/IconButton";
+import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 
 type TbmPreset = {
   workType: string;
@@ -368,7 +371,7 @@ const INITIAL_PRESET: TbmPreset = {
 };
 
 const INITIAL_ADDITIONAL_INPUTS: AdditionalTbmInputs = {
-  workerCount: "",
+  workerCount: "1",
   supervisorName: "",
   equipment: "",
   requiredPpe: "",
@@ -387,15 +390,15 @@ type ScriptTemplateItem = {
 };
 
 const SCRIPT_TEMPLATE: ScriptTemplateItem[] = [
-  { title: "인사" },
-  { title: "건강" },
-  { title: "작업" },
-  { title: "위험" },
-  { title: "조치" },
-  { title: "사례" },
-  { title: "의견" },
-  { title: "비상" },
-  { title: "지적확인" }
+  { title: "1단계: 인사" },
+  { title: "2단계: 건강" },
+  { title: "3단계: 작업" },
+  { title: "4단계: 위험" },
+  { title: "5단계: 조치" },
+  { title: "6단계: 사례" },
+  { title: "7단계: 의견" },
+  { title: "8단계: 비상" },
+  { title: "9단계: 지적확인" }
 ];
 
 const SIGNATURE_CHECKLIST_ITEMS = ["PPE 확인", "LOTO 확인", "위험요인 숙지"] as const;
@@ -1441,7 +1444,7 @@ function SelectionChipRow({
 
                 fontSize: 14,
                 fontWeight: checked ? 700 : 600,
-                color: checked ? "#ffffff" : panelText,
+                color: panelText,
                 whiteSpace: "nowrap",
                 textTransform: "none",
 
@@ -1653,11 +1656,9 @@ function TbmGeneratePage() {
   const [hasRequestedPreview, setHasRequestedPreview] = useState(false);
   const [scriptDrafts, setScriptDrafts] = useState<Record<string, string>>({});
   const [minutesDrafts, setMinutesDrafts] = useState<Record<string, string>>({});
-  const [scriptSentenceChecks, setScriptSentenceChecks] = useState<Record<string, boolean>>({});
+  const [scriptSectionChecks, setScriptSectionChecks] = useState<Record<string, boolean>>({});
   const [minutesChecks, setMinutesChecks] = useState<Record<string, boolean>>({});
-  const [signatureChecklistChecks, setSignatureChecklistChecks] = useState<Record<string, boolean>>(
-    {}
-  );
+  const [signatureChecklistChecks, setSignatureChecklistChecks] = useState<Record<string, boolean>>({});
   const [workerSignatures, setWorkerSignatures] = useState<string[]>([]);
   const [supervisorSignature, setSupervisorSignature] = useState("");
   const [isSavingSignature, setIsSavingSignature] = useState(false);
@@ -1727,26 +1728,43 @@ function TbmGeneratePage() {
     ...section,
     content: (() => {
       if (isPreviewProducing) return PRODUCTION_PLACEHOLDER;
+
+      // "1단계: 인사"에서 실제 단계명인 "인사"만 추출
+      const sectionName = section.title
+        .replace(/^\d+단계\s*:\s*/, "")
+        .trim();
+
       const baseContent =
-        cleanPreviewContent(scriptSectionMap[section.title] || "") ||
-        draftBlocks[SCRIPT_TEMPLATE.findIndex((item) => item.title === section.title)] ||
+        cleanPreviewContent(scriptSectionMap[sectionName] || "") ||
+        draftBlocks[
+        SCRIPT_TEMPLATE.findIndex(
+          (item) => item.title === section.title
+        )
+        ] ||
         "";
-      const fallbackContent = buildScriptSectionFallback(section.title, preset);
+
+      const fallbackContent = buildScriptSectionFallback(sectionName, preset);
+
       let enrichedContent = baseContent;
+
       if (!enrichedContent) {
         enrichedContent = fallbackContent;
-      } else if (enrichedContent.replace(/\s+/g, "").length < 80 && fallbackContent) {
+      } else if (
+        enrichedContent.replace(/\s+/g, "").length < 80 &&
+        fallbackContent
+      ) {
         enrichedContent = mergeUniqueLines(enrichedContent, fallbackContent);
       }
+
       const normalized = normalizeScenarioSectionContent(
-        section.title,
+        sectionName,
         enrichedContent,
         preset
       );
 
       // 해당 단계에 반드시 포함해야 하는 선택값 및 기타 직접 입력
       const requiredInputContent = buildRequiredSectionInput(
-        section.title,
+        sectionName,
         additionalInputs,
         followUpOtherInputs
       );
@@ -1770,26 +1788,33 @@ function TbmGeneratePage() {
       return deduped;
     })()
   }));
-  const scriptSentenceKeys = scriptSections.flatMap((section) =>
-    (scriptDrafts[section.title] ?? section.content)
-      .split("\n")
-      .map((line, index) => ({ key: `${section.title}:${index}`, text: line.trim() }))
-      .filter((line) => line.text.length > 0)
-      .map((line) => line.key)
+
+  // 아직 체크하지 않은 첫 번째 단계의 위치
+  const firstUncheckedStepIndex = scriptSections.findIndex(
+    (section) => !scriptSectionChecks[section.title]
   );
-  const allScriptSentencesChecked =
-    scriptSentenceKeys.length > 0 &&
-    scriptSentenceKeys.every((key) => Boolean(scriptSentenceChecks[key]));
+
+  // 처음에는 1단계만 표시하고,
+  // 모든 단계를 체크했다면 9단계까지 모두 표시
+  const visibleScriptSectionCount =
+    firstUncheckedStepIndex === -1
+      ? scriptSections.length
+      : firstUncheckedStepIndex + 1;
+
+  const scriptSectionKeys = scriptSections.map((section) => section.title);
+  const allScriptSectionsChecked =
+    scriptSectionKeys.length > 0 &&
+    scriptSectionKeys.every((sectionTitle) =>
+      Boolean(scriptSectionChecks[sectionTitle]));
   const allSignatureChecklistChecked = SIGNATURE_CHECKLIST_ITEMS.every((item) =>
-    Boolean(signatureChecklistChecks[item])
-  );
+    Boolean(signatureChecklistChecks[item]));
   const allWorkerSignaturesCompleted =
     workerCount > 0 &&
     workerSignatures.length === workerCount &&
     workerSignatures.every((signature) => Boolean(signature));
 
   const signatureSubmitReady =
-    allScriptSentencesChecked &&
+    allScriptSectionsChecked &&
     allSignatureChecklistChecked &&
     allWorkerSignaturesCompleted &&
     Boolean(supervisorSignature) &&
@@ -1885,14 +1910,10 @@ function TbmGeneratePage() {
       Object.fromEntries(scriptSections.map((section) => [section.title, section.content]))
     );
     setMinutesDrafts(Object.fromEntries(minutesSectionRows.map((row) => [row.label, row.content])));
-    setScriptSentenceChecks(
+    setScriptSectionChecks(
       Object.fromEntries(
-        scriptSections.flatMap((section) =>
-          section.content
-            .split("\n")
-            .map((line, index) => ({ key: `${section.title}:${index}`, text: line.trim() }))
-            .filter((line) => line.text.length > 0)
-            .map((line) => [line.key, false] as const)
+        scriptSections.map(
+          (section) => [section.title, false] as const
         )
       )
     );
@@ -2049,7 +2070,7 @@ function TbmGeneratePage() {
     setHasRequestedPreview(false);
     setScriptDrafts({});
     setMinutesDrafts({});
-    setScriptSentenceChecks({});
+    setScriptSectionChecks({});
     setMinutesChecks({});
     setSignatureChecklistChecks({});
     setWorkerSignatures([]);
@@ -2784,41 +2805,96 @@ function TbmGeneratePage() {
             size="small"
             fullWidth
             value={value}
+            placeholder="작업 인원을 선택하세요."
             onWheel={(event) => {
               event.currentTarget.querySelector("input")?.blur();
             }}
-            onChange={(event) => {
-              const nextValue = event.target.value.replace(/\D/g, "");
-
-              if (nextValue === "") {
-                setAdditionalInputs((prev) => ({
-                  ...prev,
-                  workerCount: ""
-                }));
-                return;
-              }
-
-              const numericValue = Number(nextValue);
-              if (!Number.isFinite(numericValue)) return;
-
-              const normalizedValue = Math.min(
-                100,
-                Math.max(1, Math.floor(numericValue))
-              );
-
-              setAdditionalInputs((prev) => ({
-                ...prev,
-                workerCount: String(normalizedValue)
-              }));
-            }}
             slotProps={{
               htmlInput: {
-                inputMode: "numeric",
-                pattern: "[0-9]*",
+                readOnly: true,
+                inputMode: "none",
                 autoComplete: "off"
+              },
+
+              input: {
+                endAdornment: (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      height: 36,
+                      ml: 0.5,
+                      mr: -0.5
+                    }}
+                  >
+                    <IconButton
+                      type="button"
+                      size="small"
+                      aria-label="작업 인원 증가"
+                      onClick={() => {
+                        const currentCount = Number(value) || 0;
+                        const nextCount = Math.min(100, currentCount + 1);
+
+                        setAdditionalInputs((prev) => ({
+                          ...prev,
+                          workerCount: String(nextCount)
+                        }));
+                      }}
+                      sx={{
+                        width: 24,
+                        height: 17,
+                        p: 0,
+                        borderRadius: 0.7,
+                        color: actionSky,
+
+                        "&:hover": {
+                          bgcolor: "#fff3e0",
+                          color: actionSkyHover
+                        }
+                      }}
+                    >
+                      <KeyboardArrowUp sx={{ fontSize: 18 }} />
+                    </IconButton>
+
+                    <IconButton
+                      type="button"
+                      size="small"
+                      aria-label="작업 인원 감소"
+                      disabled={(Number(value) || 0) <= 1}
+                      onClick={() => {
+                        const currentCount = Number(value) || 1;
+                        const nextCount = Math.max(1, currentCount - 1);
+
+                        setAdditionalInputs((prev) => ({
+                          ...prev,
+                          workerCount: String(nextCount)
+                        }));
+                      }}
+                      sx={{
+                        width: 24,
+                        height: 17,
+                        p: 0,
+                        borderRadius: 0.7,
+                        color: accentBlue,
+
+                        "&:hover": {
+                          bgcolor: "#ffebee",
+                          color: accentBlueHover
+                        },
+
+                        "&.Mui-disabled": {
+                          color: "#c7c7c7"
+                        }
+                      }}
+                    >
+                      <KeyboardArrowDown sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Box>
+                )
               }
             }}
-            placeholder="작업 인원을 숫자로 입력하세요."
             sx={{
               ...darkInputSx,
 
@@ -2826,6 +2902,10 @@ function TbmGeneratePage() {
                 bgcolor: "#ffffff",
                 color: inputText,
                 borderRadius: cardRadius
+              },
+
+              "& .MuiInputBase-input": {
+                cursor: "default"
               }
             }}
           />
@@ -3403,7 +3483,7 @@ function TbmGeneratePage() {
                       fontSize: 24,
                       fontWeight: 800,
                       mb: 1.25,
-                      color: previewScriptAccent
+                      color: panelText
                     }}
                   >
                     TBM 실행 시나리오
@@ -3456,151 +3536,179 @@ function TbmGeneratePage() {
                       </Box>
                     </Box>
 
-                    {scriptSections.map((section, index) => (
-                      <Box
-                        key={section.title}
-                        sx={{
-                          display: "grid",
-
-                          // 모바일만 1열
-                          // 태블릿·웹은 기존 190px + 나머지 영역 유지
-                          gridTemplateColumns: {
-                            xs: "minmax(0, 1fr)",
-                            sm: "190px minmax(0, 1fr)"
-                          },
-
-                          borderBottom:
-                            index === scriptSections.length - 1
-                              ? "none"
-                              : `1px solid ${previewScriptBorder}`,
-
-                          minWidth: 0,
-                          width: "100%"
-                        }}
-                      >
-                        {/* 구분 제목 영역 */}
+                    {scriptSections
+                      .slice(0, visibleScriptSectionCount)
+                      .map((section, index) => (
                         <Box
+                          key={section.title}
                           sx={{
-                            p: {
-                              xs: 1,
-                              sm: 0.8
+                            display: "grid",
+
+                            // 모바일만 1열
+                            // 태블릿·웹은 기존 190px + 나머지 영역 유지
+                            gridTemplateColumns: {
+                              xs: "minmax(0, 1fr)",
+                              sm: "190px minmax(0, 1fr)"
                             },
 
-                            fontSize: 12.5,
-                            fontWeight: 700,
-
-                            // 모바일은 제목이 위에 위치하므로 오른쪽 선 제거
-                            borderRight: {
-                              xs: "none",
-                              sm: `1px solid ${previewScriptBorder}`
-                            },
-
-                            // 모바일에서 제목과 멘트 사이 구분선
-                            borderBottom: {
-                              xs: `1px solid ${previewScriptBorder}`,
-                              sm: "none"
-                            },
-
-                            textAlign: "center",
-                            bgcolor: previewScriptHeaderBg,
-                            color: panelText,
-                            display: "flex",
-                            flexDirection: "column",
-                            justifyContent: "center",
-                            gap: 0.25,
-                            minWidth: 0
-                          }}
-                        >
-                          <span>{section.title}</span>
-
-                          {section.subtitle ? (
-                            <span style={{ fontWeight: 500 }}>
-                              {section.subtitle}
-                            </span>
-                          ) : null}
-                        </Box>
-
-                        {/* 체크박스 및 멘트 영역 */}
-                        <Box
-                          sx={{
-                            px: {
-                              xs: 0.5,
-                              sm: 0.65
-                            },
-                            py: {
-                              xs: 0.75,
-                              sm: 0.45
-                            },
-
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 0.2,
-                            bgcolor: inputBg,
+                            borderBottom:
+                              index === visibleScriptSectionCount - 1
+                                ? "none"
+                                : `1px solid ${previewScriptBorder}`,
 
                             minWidth: 0,
-                            width: "100%",
-                            maxWidth: "100%",
-                            boxSizing: "border-box"
+                            width: "100%"
                           }}
                         >
-                          {(isPreviewProducing
-                            ? PRODUCTION_PLACEHOLDER
-                            : (scriptDrafts[section.title] ?? section.content)
-                          )
-                            .split("\n")
-                            .map((line, lineIndex) => {
-                              const sentenceKey = `${section.title}:${lineIndex}`;
-                              const checked = Boolean(
-                                scriptSentenceChecks[sentenceKey]
-                              );
+                          {/* 단계 제목 및 단계별 체크박스 영역 */}
+                          <Box
+                            sx={{
+                              p: {
+                                xs: 0.8,
+                                sm: 0.75
+                              },
 
-                              return (
-                                <Box
-                                  key={sentenceKey}
+                              borderRight: {
+                                xs: "none",
+                                sm: `1px solid ${previewScriptBorder}`
+                              },
+
+                              borderBottom: {
+                                xs: `1px solid ${previewScriptBorder}`,
+                                sm: "none"
+                              },
+
+                              bgcolor: previewScriptHeaderBg,
+
+                              color: panelText,
+
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: {
+                                xs: "flex-start",
+                                sm: "center"
+                              },
+
+                              gap: 0.35,
+                              minWidth: 0,
+                              transition: "background-color 0.16s ease"
+                            }}
+                          >
+                            <Checkbox
+                              checked={Boolean(scriptSectionChecks[section.title])}
+                              onChange={(event) => {
+                                const isChecked = event.target.checked;
+
+                                setScriptSectionChecks((prev) => {
+                                  const nextChecks = {
+                                    ...prev,
+                                    [section.title]: isChecked
+                                  };
+
+                                  // 이전 단계의 체크를 해제하면
+                                  // 그 뒤 단계들도 모두 체크 해제
+                                  if (!isChecked) {
+                                    scriptSections.slice(index + 1).forEach((nextSection) => {
+                                      nextChecks[nextSection.title] = false;
+                                    });
+                                  }
+
+                                  return nextChecks;
+                                });
+                              }}
+                              size="small"
+                              disabled={isPreviewProducing}
+                              sx={{
+                                p: 0.25,
+                                color: "#d9957f",
+
+                                "& .MuiSvgIcon-root": {
+                                  fontSize: 21
+                                },
+
+                                "&.Mui-checked": {
+                                  color: accentBlue
+                                }
+                              }}
+                            />
+
+                            <Box
+                              sx={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: {
+                                  xs: "flex-start",
+                                  sm: "center"
+                                },
+                                minWidth: 0
+                              }}
+                            >
+                              <Typography
+                                component="span"
+                                sx={{
+                                  fontSize: 12.5,
+                                  fontWeight: 800,
+                                  lineHeight: 1.3,
+                                  color: panelText
+                                }}
+                              >
+                                {section.title}
+                              </Typography>
+
+                              {section.subtitle ? (
+                                <Typography
+                                  component="span"
                                   sx={{
-                                    display: "grid",
-                                    gridTemplateColumns: "28px minmax(0, 1fr)",
-                                    alignItems: "flex-start",
-                                    gap: 0.25,
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    lineHeight: 1.3,
+                                    color: mutedText
+                                  }}
+                                >
+                                  {section.subtitle}
+                                </Typography>
+                              ) : null}
+                            </Box>
+                          </Box>
 
+                          {/* 체크박스 및 멘트 영역 */}
+                          <Box
+                            sx={{
+                              px: {
+                                xs: 0.5,
+                                sm: 0.65
+                              },
+                              py: {
+                                xs: 0.75,
+                                sm: 0.45
+                              },
+
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 0.2,
+                              bgcolor: inputBg,
+
+                              minWidth: 0,
+                              width: "100%",
+                              maxWidth: "100%",
+                              boxSizing: "border-box"
+                            }}
+                          >
+                            {(isPreviewProducing
+                              ? PRODUCTION_PLACEHOLDER
+                              : (scriptDrafts[section.title] ?? section.content)
+                            )
+                              .split("\n")
+                              .map((line, lineIndex) => (
+                                <Box
+                                  key={`${section.title}:${lineIndex}`}
+                                  sx={{
                                     minWidth: 0,
                                     width: "100%",
                                     maxWidth: "100%",
-                                    boxSizing: "border-box",
-
-                                    borderRadius: 1,
-                                    bgcolor: checked
-                                      ? "#eef6ff"
-                                      : "transparent",
-                                    transition: "background-color 0.16s ease"
+                                    boxSizing: "border-box"
                                   }}
                                 >
-                                  <Checkbox
-                                    checked={checked}
-                                    onChange={(event) =>
-                                      setScriptSentenceChecks((prev) => ({
-                                        ...prev,
-                                        [sentenceKey]: event.target.checked
-                                      }))
-                                    }
-                                    size="small"
-                                    disabled={
-                                      isPreviewProducing ||
-                                      line.trim().length === 0
-                                    }
-                                    sx={{
-                                      mt: 0.05,
-                                      p: 0.25,
-                                      color: "#7aa7d8",
-                                      "& .MuiSvgIcon-root": {
-                                        fontSize: 20
-                                      },
-                                      "&.Mui-checked": {
-                                        color: accentBlue
-                                      }
-                                    }}
-                                  />
-
                                   <TextField
                                     multiline
                                     minRows={1}
@@ -3625,11 +3733,9 @@ function TbmGeneratePage() {
                                         bgcolor: "transparent",
                                         borderRadius: 1,
                                         fontSize: 13,
-                                        color: checked
-                                          ? accentBlue
-                                          : panelText,
+                                        color: panelText,
                                         lineHeight: 1.38,
-                                        fontWeight: checked ? 700 : 500,
+                                        fontWeight: 500,
                                         p: 0,
                                         minWidth: 0,
                                         width: "100%"
@@ -3645,23 +3751,20 @@ function TbmGeneratePage() {
                                         borderColor: "transparent"
                                       },
 
-                                      "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline":
-                                      {
-                                        borderColor: "#bfdbfe"
+                                      "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+                                        borderColor: "#ffccbc"
                                       },
 
-                                      "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
-                                      {
+                                      "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
                                         borderColor: accentBlue
                                       }
                                     }}
                                   />
                                 </Box>
-                              );
-                            })}
+                              ))}
+                          </Box>
                         </Box>
-                      </Box>
-                    ))}
+                      ))}
                   </Box>
 
                   <Box sx={{ border: `1px solid ${previewSurfaceBorder}`, mb: 2.5 }}>

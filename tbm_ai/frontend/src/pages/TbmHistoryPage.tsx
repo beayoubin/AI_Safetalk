@@ -266,11 +266,13 @@ const PREVIEW_SECTION_ALIAS_MAP: Record<string, string[]> = {
 const normalizePreviewLabel = (value: string): string => {
   return value
     .trim()
-    .replace(/^#{1,6}\s*/, "")       // ### 제목 표시 제거
-    .replace(/^\d+[.)]\s*/, "")      // 4. 또는 4) 제거
-    .replace(/^[-*•■▪▶]+\s*/, "")    // 글머리 기호 제거
-    .replace(/[：:]\s*$/, "")         // 제목 끝의 : 제거
-    .replace(/\s+/g, "")              // 띄어쓰기 제거
+    .replace(/^>+\s*/, "")                    // 인용 표시 제거
+    .replace(/^#{1,6}\s*/, "")                // ##, ### 제거
+    .replace(/^\d+[.)]\s*/, "")               // 앞의 1. 또는 1) 제거
+    .replace(/^\d+\s*단계\s*[:：.)-]?\s*/, "") // 1단계:, 1 단계: 제거
+    .replace(/^[-*•■▪▶]+\s*/, "")             // 글머리 기호 제거
+    .replace(/[：:]\s*$/, "")                  // 마지막 콜론 제거
+    .replace(/\s+/g, "")
     .toLowerCase();
 };
 
@@ -2992,7 +2994,7 @@ function TbmHistoryPage() {
                         }
                       }}
                     >
-                      <span>{section.title}</span>
+                      <span>{`${index + 1}단계: ${section.title}`}</span>
 
                       {section.subtitle ? (
                         <Typography
