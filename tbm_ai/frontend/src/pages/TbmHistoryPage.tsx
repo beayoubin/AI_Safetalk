@@ -32,21 +32,27 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import TextField from "@mui/material/TextField";
 
 const pageBg = "#ffffff";
-const pageGradient = "linear-gradient(180deg, #ffffff 0%, #ffffff 100%)";
+const pageGradient = "linear-gradient(180deg, #ffffff 0%, #fffaf7 100%)";
 const panelBg = "#ffffff";
-const panelBorder = "#a7ddf4";
+const panelBorder = "#ffb4a2";
 const panelText = "#11344a";
 const mutedText = "#5f7482";
-const inputBg = "#f7fdff";
+const inputBg = "#fffaf7";
 const tableBg = "#ffffff";
-const tableHeaderBg = "#bfdbfe";
-const rowStripeBg = "#f8fbff";
-const rowHoverBg = "#eff6ff";
-const accentBlue = "#2563eb";
-const accentBlueHover = "#1d4ed8";
-const errorColor = "#dc2626";
+const tableHeaderBg = "#fff3e0";
+const rowStripeBg = "#fffaf7";
+const rowHoverBg = "#fff3e0";
+const accentBlue = "#d32f2f";
+const accentBlueHover = "#b71c1c";
+const actionOrange = "#ef6c00";
+const actionOrangeHover = "#e65100";
+const errorColor = "#d32f2f";
 const darkNavyText = "#ffffff";
-const sectionHeaderBg = "#BFDBFE";
+const sectionHeaderBg = "#fff3e0";
+const scriptPanelBg = "#fff8f2";
+const scriptHeaderBg = "#fff3e0";
+const scriptBorder = "#ffb74d";
+const scriptAccent = "#d32f2f";
 
 type WorkTypeOption = {
   code: string;
@@ -223,7 +229,7 @@ const menuPaperSx = {
   border: `1px solid ${panelBorder}`,
   "& .MuiMenuItem-root": { color: panelText, fontSize: 12 },
   "& .MuiMenuItem-root.Mui-selected": { bgcolor: rowHoverBg },
-  "& .MuiMenuItem-root:hover": { bgcolor: "#eff6ff" }
+  "& .MuiMenuItem-root:hover": { bgcolor: "#fff3e0" }
 };
 
 type PreviewSection = {
@@ -1817,7 +1823,7 @@ function TbmHistoryPage() {
                   textTransform: "none",
                   "&:hover": {
                     borderColor: accentBlue,
-                    bgcolor: "#eff6ff"
+                    bgcolor: "#fff3e0"
                   }
                 }}
               >
@@ -1868,7 +1874,7 @@ function TbmHistoryPage() {
                 textTransform: "none",
                 "&:hover": {
                   borderColor: accentBlue,
-                  bgcolor: "#eff6ff"
+                  bgcolor: "#fff3e0"
                 }
               }}
             >
@@ -2128,7 +2134,7 @@ function TbmHistoryPage() {
                             "&:hover": {
                               borderColor:
                                 accentBlue,
-                              bgcolor: "#eff6ff"
+                              bgcolor: "#fff3e0"
                             }
                           }}
                         >
@@ -2271,6 +2277,7 @@ function TbmHistoryPage() {
               sm: 1.5
             },
             py: 1,
+            bgcolor: "#fff8f2",
             borderBottom: `1px solid ${panelBorder}`,
 
             display: "flex",
@@ -2405,15 +2412,19 @@ function TbmHistoryPage() {
               fontSize: 12,
               px: 1.1,
               borderRadius: 0,
-              "&:hover": { borderColor: accentBlue, bgcolor: "#eff6ff" }
+              "&:hover": { borderColor: actionOrange, bgcolor: "#fff3e0" }
             }}
           >
             초기화
           </Button>
         </Box>
 
-        <Box sx={{ px: 1.5, py: 0.75, borderBottom: `1px solid ${panelBorder}` }}>
-          <Typography sx={{ fontSize: 15, fontWeight: 700, color: panelText }}>
+        <Box
+          sx={{ px: 1.5, py: 0.9, bgcolor: "#fff3e0", borderBottom: `1px solid ${panelBorder}` }}
+        >
+          <Typography
+            sx={{ fontSize: 15, fontWeight: 800, color: panelText }}
+          >
             생성된 TBM 목록 {totalCount > 0 ? `(총 ${totalCount}건)` : ""}
           </Typography>
         </Box>
@@ -2668,7 +2679,7 @@ function TbmHistoryPage() {
                       : "1px solid transparent",
                     borderRadius: 0,
                     "&:hover": {
-                      bgcolor: active ? accentBlueHover : "#eff6ff"
+                      bgcolor: active ? accentBlueHover : "#fff3e0"
                     }
                   }}
                 >
@@ -3157,7 +3168,7 @@ function TbmHistoryPage() {
                                 },
 
                                 "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
-                                  borderColor: "#bfdbfe"
+                                  borderColor: "#ffcc80"
                                 },
 
                                 "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {

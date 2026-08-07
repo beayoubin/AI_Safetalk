@@ -63,17 +63,17 @@ const normalizeRiskLevel = (
   return "MEDIUM";
 };
 
-const panelBorder = "#bfdbfe";
-const panelText = "#0f172a";
-const mutedText = "#64748b";
-const accentCyan = "#2563eb";
-const cardGradient = "linear-gradient(135deg, #ffffff 0%, #eff6ff 56%, #e0f2fe 100%)";
+const panelBorder = "#ffb4a2";
+const panelText = "#11344a";
+const mutedText = "#5f7482";
+const accentCyan = "#d32f2f";
+const cardGradient = "linear-gradient(180deg, #ffffff 0%, #fffaf7 100%)";
 
 const tableHeadCellSx = {
   fontWeight: 700,
   fontSize: 12,
-  color: "#1d4ed8",
-  bgcolor: "#dbeafe",
+  color: panelText,
+  bgcolor: "#fff3e0",
   textAlign: "center" as const,
   py: 1.25,
 
@@ -86,7 +86,7 @@ const tableHeadCellSx = {
 
 const tableBodyCellSx = {
   fontSize: 12,
-  color: "#334155",
+  color: panelText,
   py: 1.25,
   borderBottom: `1px solid ${panelBorder}`
 };
@@ -206,7 +206,7 @@ function KpiCard({ label, value, unit, delta, deltaColor = "success", alert }: K
             fontSize: 34,
             lineHeight: 1,
             letterSpacing: "-0.03em",
-            color: alert ? "#dc2626" : "#1d4ed8",
+            color: alert ? "#dc2626" : panelText,
             fontWeight: 700
           }}
         >
@@ -219,7 +219,7 @@ function KpiCard({ label, value, unit, delta, deltaColor = "success", alert }: K
         </Typography>
         <Typography
           sx={{
-            color: deltaColor === "primary" ? "#2563eb" : "#16a34a",
+            color: panelText,
             fontSize: 11,
             fontWeight: 700,
             whiteSpace: "nowrap"
@@ -318,7 +318,7 @@ function DonutChartPanel({
               textAlign: "center"
             }}
           >
-            <Typography sx={{ fontWeight: 800, fontSize: 32, lineHeight: 1, color: "#1d4ed8" }}>
+            <Typography sx={{ fontWeight: 800, fontSize: 32, lineHeight: 1, color: panelText }}>
               {rawTotal}
             </Typography>
             <Typography sx={{ fontSize: { xs: 10, sm: 12 }, color: mutedText, fontWeight: 600, mt: 0.5 }}>
@@ -721,7 +721,7 @@ function DashboardPage() {
         px: { xs: 1.25, sm: 2.5 },
         py: 1.75,
         color: panelText,
-        background: "linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%)"
+        background: "linear-gradient(180deg, #ffffff 0%, #fffaf7 100%)"
       }}
     >
       <Box
@@ -784,7 +784,7 @@ function DashboardPage() {
           />
           <Button
             variant="outlined"
-            sx={{ height: 36, color: accentCyan, borderColor: panelBorder, bgcolor: "#ffffff" }}
+            sx={{ height: 36, color: panelText, borderColor: panelBorder, bgcolor: "#ffffff" }}
             disabled={isLoading}
           >
             {isLoading ? "불러오는 중..." : "새로고침"}
@@ -873,7 +873,7 @@ function DashboardPage() {
                       key={row.tbmNo}
                       sx={{
                         "&:last-child td": { borderBottom: "none" },
-                        "&:hover": { bgcolor: "#eff6ff" }
+                        "&:hover": { bgcolor: "#fff8f2" }
                       }}
                     >
                       <TableCell sx={{ ...tableBodyCellSx, fontWeight: 600, textAlign: "left" }}>
